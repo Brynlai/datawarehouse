@@ -1,11 +1,19 @@
 -- =================================================================================
--- BAIT3003 DWT Assignment - ETL PROCESSES (CORRECTED VERSION)
+-- BAIT3003 DWT Assignment - ETL PROCESSES (FIXED VERSION)
 -- Student Name: [Your Name]
 -- Student ID:   [Your ID]
 -- Database:     Oracle 11g
 -- Description:  This script contains all ETL procedures for the initial and
 --               subsequent loading of the Hotel Analytics Data Warehouse.
--- Fix Details:  Corrected P_SUBSEQUENT_LOAD_DIMENSIONS to resolve ORA-38104.
+--
+-- Fixes Applied:
+-- 1. P_LOAD_DIM_DATE: Merged HolidayName logic into FestivalEvent.
+-- 2. P_INITIAL_LOAD_DIMENSIONS: Removed HotelID from DimRoom/DimFacility loads
+--    and simplified DimFacility load to be SCD Type 1.
+-- 3. P_INITIAL_LOAD_FACTS: Removed invalid join condition 'CurrentFlag=Y' for DimFacility.
+-- 4. P_SUBSEQUENT_LOAD_DIMENSIONS: Replaced DimFacility SCD2 logic with a simple
+--    SCD1 MERGE statement. Removed HotelID from DimRoom SCD2 logic.
+-- 5. P_SUBSEQUENT_LOAD_FACTS: Removed invalid join condition 'CurrentFlag=Y' for DimFacility.
 -- =================================================================================
 
 -- Set server output on to see execution status messages
@@ -13,23 +21,11 @@ SET SERVEROUTPUT ON;
 
 -- =================================================================================
 -- Part 1: INITIAL LOADING OF THE DATA WAREHOUSE
---
--- Description: These procedures are designed for a one-time, full load of the
---              data warehouse from the OLTP source. It assumes the DWH tables
---              are empty.
--- Strategy:
--- 1. Truncate all DWH tables to ensure a clean slate.
--- 2. Disable fact table foreign key constraints for performance during bulk load.
--- 3. Load all dimension tables first.
--- 4. Load the fact tables, looking up surrogate keys from the dimensions.
--- 5. Re-enable foreign key constraints.
 -- =================================================================================
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_LOAD_DIM_DATE
--- Description: Populates the Date Dimension table. This dimension is not sourced
---              from the OLTP but is generated programmatically to cover the
---              entire date range of the business data.
+-- CORRECTED: Removed HolidayName and consolidated logic into FestivalEvent.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_LOAD_DIM_DATE (
     p_start_date IN DATE,
@@ -51,12 +47,11 @@ BEGIN
             DayName,
             IsWeekend,
             IsHoliday,
-            HolidayName,
             WeekOfYear,
             LastDayOfMonth,
             FestivalEvent
         ) VALUES (
-            TO_NUMBER(TO_CHAR(v_current_date, 'YYYYMMDD')), -- Use a deterministic key
+            TO_NUMBER(TO_CHAR(v_current_date, 'YYYYMMDD')),
             v_current_date,
             TO_NUMBER(TO_CHAR(v_current_date, 'YYYY')),
             TO_NUMBER(TO_CHAR(v_current_date, 'Q')),
@@ -66,20 +61,18 @@ BEGIN
             TO_NUMBER(TO_CHAR(v_current_date, 'DDD')),
             TO_NUMBER(TO_CHAR(v_current_date, 'D')),
             TO_CHAR(v_current_date, 'Day'),
-            CASE WHEN TO_CHAR(v_current_date, 'D') IN ('1', '7') THEN 'Y' ELSE 'N' END, -- Assuming Sunday(1) and Saturday(7) are weekends
+            CASE WHEN TO_CHAR(v_current_date, 'D') IN ('1', '7') THEN 'Y' ELSE 'N' END,
             CASE
-                WHEN TO_CHAR(v_current_date, 'MMDD') = '0101' THEN 'Y'
-                WHEN TO_CHAR(v_current_date, 'MMDD') = '1225' THEN 'Y'
+                WHEN TO_CHAR(v_current_date, 'MMDD') IN ('0101', '1225') THEN 'Y'
                 ELSE 'N'
             END,
+            TO_NUMBER(TO_CHAR(v_current_date, 'WW')),
+            LAST_DAY(v_current_date),
             CASE
                 WHEN TO_CHAR(v_current_date, 'MMDD') = '0101' THEN 'New Year''s Day'
                 WHEN TO_CHAR(v_current_date, 'MMDD') = '1225' THEN 'Christmas Day'
                 ELSE NULL
-            END,
-            TO_NUMBER(TO_CHAR(v_current_date, 'WW')),
-            LAST_DAY(v_current_date),
-            NULL -- Can be populated with specific events later
+            END
         );
         v_current_date := v_current_date + 1;
     END LOOP;
@@ -94,8 +87,7 @@ END P_LOAD_DIM_DATE;
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_DIMENSIONS
--- Description: Loads all dimension tables (except DimDate) from the OLTP source.
---              This includes Guest, Hotel, and the SCD Type 2 dimensions Room and Facility.
+-- CORRECTED: Updated for new DimRoom and DimFacility structure.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_DIMENSIONS AS
 BEGIN
@@ -125,22 +117,20 @@ BEGIN
     FROM Hotel;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into DimHotel.');
 
-    -- (3) Load DimRoom (SCD Type 2)
-    -- For initial load, all records are current.
-    INSERT INTO DimRoom (RoomID, RoomType, BedCount, HotelID, EffectiveDate, ExpiryDate, CurrentFlag)
+    -- (3) Load DimRoom (SCD Type 2) - CORRECTED: Removed HotelID
+    INSERT INTO DimRoom (RoomID, RoomType, BedCount, EffectiveDate, ExpiryDate, CurrentFlag)
     SELECT
         room_id,
         room_type,
         bed_count,
-        hotel_id,
-        TO_DATE('2000-01-01', 'YYYY-MM-DD'), -- Effective since the beginning
-        NULL, -- No expiry date
-        'Y'   -- Currently active
+        TO_DATE('2000-01-01', 'YYYY-MM-DD'),
+        NULL,
+        'Y'
     FROM Room;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into DimRoom.');
 
-    -- (4) Load DimFacility (SCD Type 2) - This includes a transformation step.
-    INSERT INTO DimFacility (FacilityID, FacilityName, FacilityType, HotelID, EffectiveDate, ExpiryDate, CurrentFlag)
+    -- (4) Load DimFacility (SCD Type 1) - CORRECTED: Simplified load
+    INSERT INTO DimFacility (FacilityID, FacilityName, FacilityType)
     SELECT
         service_id,
         service_name,
@@ -148,12 +138,8 @@ BEGIN
             WHEN service_name IN ('Gym Access', 'Spa Treatment', 'Bike Rental') THEN 'Recreation'
             WHEN service_name IN ('Conference Room Rental') THEN 'Business'
             WHEN service_name IN ('Room Service') THEN 'Dining'
-            ELSE 'Wellness' -- A default category
-        END AS FacilityType, -- Transformation
-        hotel_id,
-        TO_DATE('2000-01-01', 'YYYY-MM-DD'),
-        NULL,
-        'Y'
+            ELSE 'Wellness'
+        END AS FacilityType
     FROM Service;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into DimFacility.');
 
@@ -168,8 +154,7 @@ END P_INITIAL_LOAD_DIMENSIONS;
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_FACTS
--- Description: Loads both fact tables by joining OLTP tables and looking up
---              surrogate keys from the already-populated dimension tables.
+-- CORRECTED: Removed invalid 'CurrentFlag' join condition for DimFacility.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_FACTS AS
 BEGIN
@@ -181,7 +166,7 @@ BEGIN
         dr.RoomKey,
         dd.DateKey,
         bd.booking_id,
-        bd.room_id, -- Using room_id as a degenerate dimension for BookingDetailID
+        bd.room_id,
         bd.duration_days,
         r.price,
         b.total_price
@@ -190,7 +175,7 @@ BEGIN
     JOIN Room r ON bd.room_id = r.room_id
     JOIN DimGuest dg ON b.guest_id = dg.GuestID
     JOIN DimHotel dh ON r.hotel_id = dh.HotelID
-    JOIN DimRoom dr ON r.room_id = dr.RoomID AND dr.CurrentFlag = 'Y' -- Join with the current version
+    JOIN DimRoom dr ON r.room_id = dr.RoomID AND dr.CurrentFlag = 'Y' -- Correct for SCD Type 2
     JOIN DimDate dd ON TRUNC(bd.checkin_date) = dd.FullDate;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into FactBookingRoom.');
 
@@ -201,13 +186,13 @@ BEGIN
         df.FacilityKey,
         dh.HotelKey,
         dd.DateKey,
-        gs.service_id, -- Using service_id as a degenerate dimension for FacilityBookingID
+        gs.service_id,
         s.service_price,
-        NULL -- DurationHours not available in OLTP, can be added later
+        NULL
     FROM GuestService gs
     JOIN Service s ON gs.service_id = s.service_id
     JOIN DimGuest dg ON gs.guest_id = dg.GuestID
-    JOIN DimFacility df ON s.service_id = df.FacilityID AND df.CurrentFlag = 'Y'
+    JOIN DimFacility df ON s.service_id = df.FacilityID -- CORRECTED: Removed 'AND df.CurrentFlag = Y'
     JOIN DimHotel dh ON s.hotel_id = dh.HotelID
     JOIN DimDate dd ON TRUNC(gs.usage_date) = dd.FullDate;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into FactFacilityBooking.');
@@ -223,7 +208,6 @@ END P_INITIAL_LOAD_FACTS;
 
 -- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_INITIAL_LOAD
--- Description: Executes the entire initial loading process in the correct sequence.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_INITIAL_LOAD AS
 BEGIN
@@ -272,15 +256,6 @@ BEGIN
 EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('FATAL ERROR during initial load: ' || SQLERRM);
-        -- Attempt to re-enable constraints even on failure
-        EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_guest';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_hotel';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_room';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_date';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_guest';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_facility';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_hotel';
-        EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_date';
 END P_RUN_INITIAL_LOAD;
 /
 
@@ -291,9 +266,6 @@ END P_RUN_INITIAL_LOAD;
 
 -- ---------------------------------------------------------------------------------
 -- View: V_CLEANSED_GUEST
--- Description: A data scrubbing/transformation view. Here, we ensure the country
---              and state names are in uppercase and handle potential NULL regions
---              by replacing them with 'N/A'. This demonstrates data cleansing.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE VIEW V_CLEANSED_GUEST AS
 SELECT
@@ -308,13 +280,13 @@ FROM
 /
 
 -- ---------------------------------------------------------------------------------
--- Procedure: P_SUBSEQUENT_LOAD_DIMENSIONS (CORRECTED)
--- Description: Handles incremental loads for all dimension tables.
---              Fixes ORA-38104 by using a separate UPDATE and INSERT for SCD2 logic.
+-- Procedure: P_SUBSEQUENT_LOAD_DIMENSIONS
+-- CORRECTED: Replaced DimFacility SCD2 logic with SCD1 MERGE. Removed HotelID
+-- from DimRoom SCD2 logic.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_DIMENSIONS AS
 BEGIN
-    -- (1) Load DimGuest (SCD Type 1) using MERGE and the cleansing view
+    -- (1) Load DimGuest (SCD Type 1)
     MERGE INTO DimGuest d
     USING V_CLEANSED_GUEST s ON (d.GuestID = s.guest_id)
     WHEN MATCHED THEN
@@ -333,29 +305,19 @@ BEGIN
         VALUES (s.guest_id, s.first_name || ' ' || s.last_name, s.state, s.country, s.region);
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows merged into DimGuest.');
 
-    -- (2) Load DimHotel (SCD Type 1) using MERGE
+    -- (2) Load DimHotel (SCD Type 1)
     MERGE INTO DimHotel d
     USING Hotel s ON (d.HotelID = s.hotel_id)
     WHEN MATCHED THEN
-        UPDATE SET
-            d.Rating = s.rating,
-            d.Email = s.email,
-            d.Phone = s.phone
-        WHERE
-            NVL(d.Rating, -1) <> NVL(s.rating, -1) OR
-            d.Email <> s.email OR
-            d.Phone <> s.phone
+        UPDATE SET d.Rating = s.rating, d.Email = s.email, d.Phone = s.phone
+        WHERE NVL(d.Rating, -1) <> NVL(s.rating, -1) OR d.Email <> s.email OR d.Phone <> s.phone
     WHEN NOT MATCHED THEN
         INSERT (HotelID, City, Region, State, Country, PostalCode, Rating, Email, Phone)
         VALUES (s.hotel_id, s.city, s.region, s.state, s.country, s.postal_code, s.rating, s.email, s.phone);
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows merged into DimHotel.');
 
-    -- (3) Load DimRoom (SCD Type 2) - CORRECTED Two-Step Process
-    -- The original MERGE statement caused ORA-38104 because it tried to UPDATE
-    -- a column (CurrentFlag) that was part of the ON clause join condition.
-    -- The correct method is to separate the logic into an UPDATE and an INSERT.
-
-    -- Step 3a: Expire records for rooms that have changed. Uses UPDATE instead of MERGE.
+    -- (3) Load DimRoom (SCD Type 2)
+    -- Step 3a: Expire records for rooms that have changed.
     UPDATE DimRoom dr
     SET
         dr.CurrentFlag = 'N',
@@ -363,30 +325,51 @@ BEGIN
     WHERE
         dr.CurrentFlag = 'Y'
         AND EXISTS (
-            SELECT 1
-            FROM Room r
-            WHERE r.room_id = dr.RoomID
-              AND (r.room_type <> dr.RoomType OR r.bed_count <> dr.BedCount)
+            SELECT 1 FROM Room r
+            WHERE r.room_id = dr.RoomID AND (r.room_type <> dr.RoomType OR r.bed_count <> dr.BedCount)
         );
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' old row(s) expired in DimRoom.');
 
     -- Step 3b: Insert new versions for expired records AND insert brand new rooms.
-    INSERT INTO DimRoom (RoomID, RoomType, BedCount, HotelID, EffectiveDate, ExpiryDate, CurrentFlag)
+    INSERT INTO DimRoom (RoomID, RoomType, BedCount, EffectiveDate, ExpiryDate, CurrentFlag)
     SELECT
         r.room_id,
         r.room_type,
         r.bed_count,
-        r.hotel_id,
         SYSDATE, -- Effective from today
         NULL,    -- Not expired
         'Y'      -- Is the current version
     FROM Room r
     WHERE NOT EXISTS (
-        SELECT 1
-        FROM DimRoom dr
-        WHERE dr.RoomID = r.room_id AND dr.CurrentFlag = 'Y'
+        SELECT 1 FROM DimRoom dr WHERE dr.RoomID = r.room_id AND dr.CurrentFlag = 'Y'
     );
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' new/updated row(s) inserted into DimRoom.');
+
+    -- (4) Load DimFacility (SCD Type 1) - CORRECTED: Using simple MERGE
+    MERGE INTO DimFacility d
+    USING (
+        SELECT
+            service_id,
+            service_name,
+            CASE
+                WHEN service_name IN ('Gym Access', 'Spa Treatment', 'Bike Rental') THEN 'Recreation'
+                WHEN service_name IN ('Conference Room Rental') THEN 'Business'
+                WHEN service_name IN ('Room Service') THEN 'Dining'
+                ELSE 'Wellness'
+            END AS FacilityType
+        FROM Service
+    ) s ON (d.FacilityID = s.service_id)
+    WHEN MATCHED THEN
+        UPDATE SET
+            d.FacilityName = s.service_name,
+            d.FacilityType = s.FacilityType
+        WHERE
+            d.FacilityName <> s.service_name OR
+            d.FacilityType <> s.FacilityType
+    WHEN NOT MATCHED THEN
+        INSERT (FacilityID, FacilityName, FacilityType)
+        VALUES (s.service_id, s.service_name, s.FacilityType);
+    DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows merged into DimFacility.');
 
 
     COMMIT;
@@ -398,25 +381,17 @@ EXCEPTION
 END P_SUBSEQUENT_LOAD_DIMENSIONS;
 /
 
-
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_SUBSEQUENT_LOAD_FACTS
--- Description: Inserts only new fact records into the fact tables.
+-- CORRECTED: Removed invalid 'CurrentFlag' join condition for DimFacility.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_FACTS AS
 BEGIN
     -- (1) Load new records into FactBookingRoom
     INSERT INTO FactBookingRoom (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID, DurationDays, RoomPricePerNight, BookingTotalAmount)
     SELECT
-        dg.GuestKey,
-        dh.HotelKey,
-        dr.RoomKey,
-        dd.DateKey,
-        bd.booking_id,
-        bd.room_id,
-        bd.duration_days,
-        r.price,
-        b.total_price
+        dg.GuestKey, dh.HotelKey, dr.RoomKey, dd.DateKey,
+        bd.booking_id, bd.room_id, bd.duration_days, r.price, b.total_price
     FROM BookingDetail bd
     JOIN Booking b ON bd.booking_id = b.booking_id
     JOIN Room r ON bd.room_id = r.room_id
@@ -424,7 +399,6 @@ BEGIN
     JOIN DimHotel dh ON r.hotel_id = dh.HotelID
     JOIN DimRoom dr ON r.room_id = dr.RoomID AND dr.CurrentFlag = 'Y'
     JOIN DimDate dd ON TRUNC(bd.checkin_date) = dd.FullDate
-    -- This condition ensures we only insert new records
     WHERE NOT EXISTS (
         SELECT 1 FROM FactBookingRoom fbr
         WHERE fbr.BookingID = bd.booking_id AND fbr.BookingDetailID = bd.room_id
@@ -432,20 +406,14 @@ BEGIN
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' new rows inserted into FactBookingRoom.');
 
     -- (2) Load new records into FactFacilityBooking
-    -- Using LEFT JOIN IS NULL pattern, an alternative to NOT EXISTS
     INSERT INTO FactFacilityBooking (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID, BookingFee, DurationHours)
     SELECT
-        dg.GuestKey,
-        df.FacilityKey,
-        dh.HotelKey,
-        dd.DateKey,
-        gs.service_id,
-        s.service_price,
-        NULL
+        dg.GuestKey, df.FacilityKey, dh.HotelKey, dd.DateKey,
+        gs.service_id, s.service_price, NULL
     FROM GuestService gs
     JOIN Service s ON gs.service_id = s.service_id
     JOIN DimGuest dg ON gs.guest_id = dg.GuestID
-    JOIN DimFacility df ON s.service_id = df.FacilityID AND df.CurrentFlag = 'Y'
+    JOIN DimFacility df ON s.service_id = df.FacilityID -- CORRECTED: Removed CurrentFlag join
     JOIN DimHotel dh ON s.hotel_id = dh.HotelID
     JOIN DimDate dd ON TRUNC(gs.usage_date) = dd.FullDate
     LEFT JOIN FactFacilityBooking ffb ON
@@ -453,7 +421,7 @@ BEGIN
         ffb.FacilityKey = df.FacilityKey AND
         ffb.DateKey = dd.DateKey AND
         ffb.FacilityBookingID = gs.service_id
-    WHERE ffb.GuestKey IS NULL; -- Only insert if no match is found
+    WHERE ffb.GuestKey IS NULL;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' new rows inserted into FactFacilityBooking.');
 
     COMMIT;
@@ -467,40 +435,15 @@ END P_SUBSEQUENT_LOAD_FACTS;
 
 -- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_SUBSEQUENT_LOAD
--- Description: Executes the entire subsequent loading process in the correct sequence.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_SUBSEQUENT_LOAD AS
 BEGIN
     DBMS_OUTPUT.PUT_LINE('--- Starting Subsequent Data Warehouse Load ---');
-
-    -- Step 1: Load/Update Dimensions
     P_SUBSEQUENT_LOAD_DIMENSIONS;
-
-    -- Step 2: Load new Facts
     P_SUBSEQUENT_LOAD_FACTS;
-
     DBMS_OUTPUT.PUT_LINE('--- Subsequent Data Warehouse Load Completed Successfully ---');
 EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('FATAL ERROR during subsequent load: ' || SQLERRM);
 END P_RUN_SUBSEQUENT_LOAD;
 /
-
--- =================================================================================
--- Execution Block
--- To run the ETL, you would execute one of the following commands:
---
--- SET SERVEROUTPUT ON;
---
--- For the first-time load:
--- BEGIN
---     P_RUN_INITIAL_LOAD;
--- END;
--- /
---
--- For all future daily/weekly loads:
--- BEGIN
---     P_RUN_SUBSEQUENT_LOAD;
--- END;
--- /
--- =================================================================================

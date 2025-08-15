@@ -1,7 +1,12 @@
 -- ====================================================================
--- Production-Ready Data Warehouse DDL
+-- Production-Ready Data Warehouse DDL (FIXED VERSION)
 -- Database: Oracle 11g
 -- Execution: This script is idempotent and can be run in its entirety.
+--
+-- Fixes Applied:
+-- 1. DimDate: Removed redundant 'HolidayName' column.
+-- 2. Star Schema: Removed 'HotelID' from DimRoom and DimFacility.
+-- 3. DimFacility: Converted from SCD Type 2 to SCD Type 1.
 -- ====================================================================
 
 -- Part 0: CLEANUP SCRIPT
@@ -86,12 +91,12 @@ CREATE TABLE DimHotel (
     CONSTRAINT pk_dim_hotel PRIMARY KEY (HotelKey)
 );
 
+-- CORRECTED: Removed HotelID to adhere to Star Schema.
 CREATE TABLE DimRoom (
     RoomKey NUMBER(10) NOT NULL,
     RoomID NUMBER(10) NOT NULL,
     RoomType VARCHAR2(50),
     BedCount NUMBER(2),
-    HotelID NUMBER(10),
     EffectiveDate DATE NOT NULL,
     ExpiryDate DATE,
     CurrentFlag CHAR(1) NOT NULL,
@@ -99,6 +104,7 @@ CREATE TABLE DimRoom (
     CONSTRAINT chk_dimroom_currentflag CHECK (CurrentFlag IN ('Y', 'N'))
 );
 
+-- CORRECTED: Removed HolidayName, consolidated into FestivalEvent.
 CREATE TABLE DimDate (
     DateKey NUMBER(10) NOT NULL,
     FullDate DATE UNIQUE NOT NULL,
@@ -112,7 +118,6 @@ CREATE TABLE DimDate (
     DayName VARCHAR2(20) NOT NULL,
     IsWeekend CHAR(1) NOT NULL,
     IsHoliday CHAR(1) NOT NULL,
-    HolidayName VARCHAR2(50),
     WeekOfYear NUMBER(2) NOT NULL,
     LastDayOfMonth DATE NOT NULL,
     FestivalEvent VARCHAR2(100),
@@ -121,18 +126,14 @@ CREATE TABLE DimDate (
     CONSTRAINT chk_dimdate_isholiday CHECK (IsHoliday IN ('Y', 'N'))
 );
 
+-- CORRECTED: Converted to SCD Type 1 and removed HotelID.
 CREATE TABLE DimFacility (
     FacilityKey NUMBER(10) NOT NULL,
     FacilityID NUMBER(10) NOT NULL,
     FacilityName VARCHAR2(100) NOT NULL,
     FacilityType VARCHAR2(100) NOT NULL,
-    HotelID NUMBER(10),
-    EffectiveDate DATE NOT NULL,
-    ExpiryDate DATE,
-    CurrentFlag CHAR(1) NOT NULL,
     CONSTRAINT pk_dim_facility PRIMARY KEY (FacilityKey),
-    CONSTRAINT chk_dimfacility_type CHECK (FacilityType IN ('Recreation', 'Business', 'Dining', 'Wellness')),
-    CONSTRAINT chk_dimfacility_currentflag CHECK (CurrentFlag IN ('Y', 'N'))
+    CONSTRAINT chk_dimfacility_type CHECK (FacilityType IN ('Recreation', 'Business', 'Dining', 'Wellness'))
 );
 
 CREATE TABLE FactBookingRoom (
