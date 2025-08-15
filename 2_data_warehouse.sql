@@ -1,15 +1,71 @@
--- ======================================================
--- DDL for REVISED Data Warehouse (Star Schema)
+-- ====================================================================
+-- Production-Ready Data Warehouse DDL
 -- Database: Oracle 11g
--- Sequence: Dimension tables are created first, followed by fact tables.
--- ======================================================
+-- Execution: This script is idempotent and can be run in its entirety.
+-- ====================================================================
 
--- Step 1: Create All Dimension Tables
--- ------------------------------------------------------
+-- Part 0: CLEANUP SCRIPT
+-- --------------------------------------------------------------------
+BEGIN
+   EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_facility_pk';
+   EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_date_pk';
+   EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_room_pk';
+   EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_hotel_pk';
+   EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_guest_pk';
+EXCEPTION
+   WHEN OTHERS THEN
+      IF SQLCODE != -4080 THEN
+         RAISE;
+      END IF;
+END;
+/
+
+BEGIN
+   EXECUTE IMMEDIATE 'DROP TABLE FactFacilityBooking CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE FactBookingRoom CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE DimFacility CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE DimDate CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE DimRoom CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE DimHotel CASCADE CONSTRAINTS';
+   EXECUTE IMMEDIATE 'DROP TABLE DimGuest CASCADE CONSTRAINTS';
+EXCEPTION
+   WHEN OTHERS THEN
+      IF SQLCODE != -942 THEN
+         RAISE;
+      END IF;
+END;
+/
+
+BEGIN
+   EXECUTE IMMEDIATE 'DROP SEQUENCE dim_facility_seq';
+   EXECUTE IMMEDIATE 'DROP SEQUENCE dim_date_seq';
+   EXECUTE IMMEDIATE 'DROP SEQUENCE dim_room_seq';
+   EXECUTE IMMEDIATE 'DROP SEQUENCE dim_hotel_seq';
+   EXECUTE IMMEDIATE 'DROP SEQUENCE dim_guest_seq';
+EXCEPTION
+   WHEN OTHERS THEN
+      IF SQLCODE != -2289 THEN
+         RAISE;
+      END IF;
+END;
+/
+
+
+-- Part 1: SEQUENCES
+-- --------------------------------------------------------------------
+CREATE SEQUENCE dim_guest_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE dim_hotel_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE dim_room_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE dim_date_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+CREATE SEQUENCE dim_facility_seq START WITH 1 INCREMENT BY 1 NOCACHE;
+
+
+-- Part 2: TABLES
+-- --------------------------------------------------------------------
 CREATE TABLE DimGuest (
     GuestKey NUMBER(10) NOT NULL,
-    GuestID NUMBER(10), -- Business Key from source
-    GuestFullName VARCHAR2(101),
+    GuestID NUMBER(10),
+    GuestFullName VARCHAR2(101) NOT NULL,
     State VARCHAR2(100),
     Country VARCHAR2(100),
     Region VARCHAR2(100),
@@ -18,7 +74,7 @@ CREATE TABLE DimGuest (
 
 CREATE TABLE DimHotel (
     HotelKey NUMBER(10) NOT NULL,
-    HotelID NUMBER(10), -- Business Key from source
+    HotelID NUMBER(10),
     City VARCHAR2(100),
     Region VARCHAR2(100),
     State VARCHAR2(100),
@@ -32,61 +88,63 @@ CREATE TABLE DimHotel (
 
 CREATE TABLE DimRoom (
     RoomKey NUMBER(10) NOT NULL,
-    RoomID NUMBER(10), -- Business Key from source
+    RoomID NUMBER(10) NOT NULL,
     RoomType VARCHAR2(50),
     BedCount NUMBER(2),
     HotelID NUMBER(10),
-    EffectiveDate DATE,
+    EffectiveDate DATE NOT NULL,
     ExpiryDate DATE,
-    CurrentFlag CHAR(1),
-    CONSTRAINT pk_dim_room PRIMARY KEY (RoomKey)
+    CurrentFlag CHAR(1) NOT NULL,
+    CONSTRAINT pk_dim_room PRIMARY KEY (RoomKey),
+    CONSTRAINT chk_dimroom_currentflag CHECK (CurrentFlag IN ('Y', 'N'))
 );
 
 CREATE TABLE DimDate (
     DateKey NUMBER(10) NOT NULL,
-    FullDate DATE,
-    Year NUMBER(4),
-    Quarter NUMBER(1),
-    Month NUMBER(2),
-    MonthName VARCHAR2(20),
-    DayOfMonth NUMBER(2),
-    DayOfYear NUMBER(3),
-    DayOfWeek NUMBER(1),
-    DayName VARCHAR2(20),
-    IsWeekend CHAR(1),
-    IsHoliday CHAR(1),
+    FullDate DATE UNIQUE NOT NULL,
+    Year NUMBER(4) NOT NULL,
+    Quarter NUMBER(1) NOT NULL,
+    Month NUMBER(2) NOT NULL,
+    MonthName VARCHAR2(20) NOT NULL,
+    DayOfMonth NUMBER(2) NOT NULL,
+    DayOfYear NUMBER(3) NOT NULL,
+    DayOfWeek NUMBER(1) NOT NULL,
+    DayName VARCHAR2(20) NOT NULL,
+    IsWeekend CHAR(1) NOT NULL,
+    IsHoliday CHAR(1) NOT NULL,
     HolidayName VARCHAR2(50),
-    WeekOfYear NUMBER(2),
-    LastDayOfMonth DATE,
+    WeekOfYear NUMBER(2) NOT NULL,
+    LastDayOfMonth DATE NOT NULL,
     FestivalEvent VARCHAR2(100),
-    CONSTRAINT pk_dim_date PRIMARY KEY (DateKey)
+    CONSTRAINT pk_dim_date PRIMARY KEY (DateKey),
+    CONSTRAINT chk_dimdate_isweekend CHECK (IsWeekend IN ('Y', 'N')),
+    CONSTRAINT chk_dimdate_isholiday CHECK (IsHoliday IN ('Y', 'N'))
 );
 
 CREATE TABLE DimFacility (
     FacilityKey NUMBER(10) NOT NULL,
-    FacilityID NUMBER(10), -- Business key from source Service table
-    FacilityName VARCHAR2(100),
-    FacilityType VARCHAR2(100), -- e.g., 'Spa', 'Gym', 'Pool', 'Conference Room'
+    FacilityID NUMBER(10) NOT NULL,
+    FacilityName VARCHAR2(100) NOT NULL,
+    FacilityType VARCHAR2(100) NOT NULL,
     HotelID NUMBER(10),
-    EffectiveDate DATE,
+    EffectiveDate DATE NOT NULL,
     ExpiryDate DATE,
-    CurrentFlag CHAR(1),
-    CONSTRAINT pk_dim_facility PRIMARY KEY (FacilityKey)
+    CurrentFlag CHAR(1) NOT NULL,
+    CONSTRAINT pk_dim_facility PRIMARY KEY (FacilityKey),
+    CONSTRAINT chk_dimfacility_type CHECK (FacilityType IN ('Recreation', 'Business', 'Dining', 'Wellness')),
+    CONSTRAINT chk_dimfacility_currentflag CHECK (CurrentFlag IN ('Y', 'N'))
 );
 
-
--- Step 2: Create All Fact Tables
--- ------------------------------------------------------
 CREATE TABLE FactBookingRoom (
     GuestKey NUMBER(10) NOT NULL,
     HotelKey NUMBER(10) NOT NULL,
     RoomKey NUMBER(10) NOT NULL,
     DateKey NUMBER(10) NOT NULL,
-    BookingID NUMBER(10) NOT NULL,       -- Degenerate Dimension
-    BookingDetailID NUMBER(10) NOT NULL, -- Degenerate Dimension
-    DurationDays NUMBER(3),
-    RoomPricePerNight NUMBER(10,2),
-    BookingTotalAmount NUMBER(12,2),
+    BookingID NUMBER(10) NOT NULL,
+    BookingDetailID NUMBER(10) NOT NULL,
+    DurationDays NUMBER(3) NOT NULL,
+    RoomPricePerNight NUMBER(10,2) NOT NULL,
+    BookingTotalAmount NUMBER(12,2) NOT NULL,
     CONSTRAINT pk_fact_booking PRIMARY KEY (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID),
     CONSTRAINT fk_fb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_fb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
@@ -99,8 +157,8 @@ CREATE TABLE FactFacilityBooking (
     FacilityKey NUMBER(10) NOT NULL,
     HotelKey NUMBER(10) NOT NULL,
     DateKey NUMBER(10) NOT NULL,
-    FacilityBookingID NUMBER(10) NOT NULL, -- Degenerate Dimension from source
-    BookingFee NUMBER(10,2),
+    FacilityBookingID NUMBER(10) NOT NULL,
+    BookingFee NUMBER(10,2) NOT NULL,
     DurationHours NUMBER(4,1),
     CONSTRAINT pk_fact_facility PRIMARY KEY (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID),
     CONSTRAINT fk_ffb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
@@ -108,3 +166,30 @@ CREATE TABLE FactFacilityBooking (
     CONSTRAINT fk_ffb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
     CONSTRAINT fk_ffb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey)
 );
+
+
+-- Part 3: INDEXES
+-- --------------------------------------------------------------------
+CREATE INDEX idx_fb_guest_key ON FactBookingRoom(GuestKey);
+CREATE INDEX idx_fb_hotel_key ON FactBookingRoom(HotelKey);
+CREATE INDEX idx_fb_room_key ON FactBookingRoom(RoomKey);
+CREATE INDEX idx_fb_date_key ON FactBookingRoom(DateKey);
+
+CREATE INDEX idx_ffb_guest_key ON FactFacilityBooking(GuestKey);
+CREATE INDEX idx_ffb_facility_key ON FactFacilityBooking(FacilityKey);
+CREATE INDEX idx_ffb_hotel_key ON FactFacilityBooking(HotelKey);
+CREATE INDEX idx_ffb_date_key ON FactFacilityBooking(DateKey);
+
+
+-- Part 4: TRIGGERS
+-- --------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER trg_dim_guest_pk BEFORE INSERT ON DimGuest FOR EACH ROW BEGIN IF :NEW.GuestKey IS NULL THEN SELECT dim_guest_seq.NEXTVAL INTO :NEW.GuestKey FROM DUAL; END IF; END;
+/
+CREATE OR REPLACE TRIGGER trg_dim_hotel_pk BEFORE INSERT ON DimHotel FOR EACH ROW BEGIN IF :NEW.HotelKey IS NULL THEN SELECT dim_hotel_seq.NEXTVAL INTO :NEW.HotelKey FROM DUAL; END IF; END;
+/
+CREATE OR REPLACE TRIGGER trg_dim_room_pk BEFORE INSERT ON DimRoom FOR EACH ROW BEGIN IF :NEW.RoomKey IS NULL THEN SELECT dim_room_seq.NEXTVAL INTO :NEW.RoomKey FROM DUAL; END IF; END;
+/
+CREATE OR REPLACE TRIGGER trg_dim_date_pk BEFORE INSERT ON DimDate FOR EACH ROW BEGIN IF :NEW.DateKey IS NULL THEN SELECT dim_date_seq.NEXTVAL INTO :NEW.DateKey FROM DUAL; END IF; END;
+/
+CREATE OR REPLACE TRIGGER trg_dim_facility_pk BEFORE INSERT ON DimFacility FOR EACH ROW BEGIN IF :NEW.FacilityKey IS NULL THEN SELECT dim_facility_seq.NEXTVAL INTO :NEW.FacilityKey FROM DUAL; END IF; END;
+/
