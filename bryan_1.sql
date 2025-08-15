@@ -13,9 +13,6 @@ CLEAR COMPUTES
 TTITLE CENTER 'Strategic Performance Report' SKIP 1 CENTER 'Year-over-Year Room Revenue Growth by Country (2023 vs 2022)' SKIP 2
 
 -- Define column formats for perfect alignment and readability
--- A25 for country gives ample space.
--- 999,999,990.00 forces right-alignment for numbers.
--- A15 for the growth string allows for right-padding.
 COLUMN Country FORMAT A40 HEADING 'Country'
 COLUMN Revenue_Year FORMAT 9999 HEADING 'Year'
 COLUMN Total_Revenue FORMAT 999,999,990.00 HEADING '2023 Revenue'

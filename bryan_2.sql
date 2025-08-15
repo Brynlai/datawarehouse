@@ -47,7 +47,6 @@ SELECT
         ELSE 0
     END AS ADR,
     -- Add a flag to highlight potential issues. The original business rule was too aggressive.
-    -- A better rule is to check for price inversions.
     CASE
         WHEN (m.Sum_Revenue / m.Sum_Room_Nights) < LAG(m.Sum_Revenue / m.Sum_Room_Nights, 1, 9999) OVER (ORDER BY m.Rating DESC)
         THEN 'PRICE INVERSION'
