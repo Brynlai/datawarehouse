@@ -1,10 +1,11 @@
 -- =================================================================================
--- BAIT3003 DWT Assignment - ETL PROCESSES
+-- BAIT3003 DWT Assignment - ETL PROCESSES (CORRECTED VERSION)
 -- Student Name: [Your Name]
 -- Student ID:   [Your ID]
 -- Database:     Oracle 11g
 -- Description:  This script contains all ETL procedures for the initial and
 --               subsequent loading of the Hotel Analytics Data Warehouse.
+-- Fix Details:  Corrected P_SUBSEQUENT_LOAD_DIMENSIONS to resolve ORA-38104.
 -- =================================================================================
 
 -- Set server output on to see execution status messages
@@ -286,16 +287,6 @@ END P_RUN_INITIAL_LOAD;
 
 -- =================================================================================
 -- Part 2: SUBSEQUENT LOADING OF THE DATA WAREHOUSE
---
--- Description: These procedures are for incremental (delta) loads. They handle
---              new records, updated records (SCD1 and SCD2), and demonstrate
---              a basic data scrubbing technique using a VIEW.
--- Strategy:
--- 1. Use MERGE statement for SCD Type 1 dimensions (DimGuest, DimHotel) to
---    insert new records and update existing ones.
--- 2. Use a two-step MERGE/INSERT process for SCD Type 2 dimensions (DimRoom)
---    to expire old records and insert new versions for any changes.
--- 3. Insert only new fact records that do not already exist in the fact tables.
 -- =================================================================================
 
 -- ---------------------------------------------------------------------------------
@@ -317,8 +308,9 @@ FROM
 /
 
 -- ---------------------------------------------------------------------------------
--- Procedure: P_SUBSEQUENT_LOAD_DIMENSIONS
+-- Procedure: P_SUBSEQUENT_LOAD_DIMENSIONS (CORRECTED)
 -- Description: Handles incremental loads for all dimension tables.
+--              Fixes ORA-38104 by using a separate UPDATE and INSERT for SCD2 logic.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_DIMENSIONS AS
 BEGIN
@@ -333,9 +325,9 @@ BEGIN
             d.Region = s.region
         WHERE
             d.GuestFullName <> (s.first_name || ' ' || s.last_name) OR
-            d.State <> s.state OR
-            d.Country <> s.country OR
-            d.Region <> s.region
+            NVL(d.State, ' ') <> NVL(s.state, ' ') OR
+            NVL(d.Country, ' ') <> NVL(s.country, ' ') OR
+            NVL(d.Region, ' ') <> NVL(s.region, ' ')
     WHEN NOT MATCHED THEN
         INSERT (GuestID, GuestFullName, State, Country, Region)
         VALUES (s.guest_id, s.first_name || ' ' || s.last_name, s.state, s.country, s.region);
@@ -358,22 +350,27 @@ BEGIN
         VALUES (s.hotel_id, s.city, s.region, s.state, s.country, s.postal_code, s.rating, s.email, s.phone);
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows merged into DimHotel.');
 
-    -- (3) Load DimRoom (SCD Type 2) - Two-Step Process
-    -- Step 3a: Expire old records for rooms that have changed and insert brand new rooms.
-    MERGE INTO DimRoom dr
-    USING Room r ON (dr.RoomID = r.room_id AND dr.CurrentFlag = 'Y')
-    WHEN MATCHED THEN
-        UPDATE SET
-            dr.CurrentFlag = 'N',
-            dr.ExpiryDate = SYSDATE - 1
-        WHERE
-            dr.RoomType <> r.room_type OR dr.BedCount <> r.bed_count
-    WHEN NOT MATCHED THEN
-        INSERT (RoomID, RoomType, BedCount, HotelID, EffectiveDate, ExpiryDate, CurrentFlag)
-        VALUES (r.room_id, r.room_type, r.bed_count, r.hotel_id, SYSDATE, NULL, 'Y');
-    DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows merged for SCD2 Step 1 (DimRoom).');
+    -- (3) Load DimRoom (SCD Type 2) - CORRECTED Two-Step Process
+    -- The original MERGE statement caused ORA-38104 because it tried to UPDATE
+    -- a column (CurrentFlag) that was part of the ON clause join condition.
+    -- The correct method is to separate the logic into an UPDATE and an INSERT.
 
-    -- Step 3b: Insert the new version of the records that were just expired.
+    -- Step 3a: Expire records for rooms that have changed. Uses UPDATE instead of MERGE.
+    UPDATE DimRoom dr
+    SET
+        dr.CurrentFlag = 'N',
+        dr.ExpiryDate = SYSDATE - 1
+    WHERE
+        dr.CurrentFlag = 'Y'
+        AND EXISTS (
+            SELECT 1
+            FROM Room r
+            WHERE r.room_id = dr.RoomID
+              AND (r.room_type <> dr.RoomType OR r.bed_count <> dr.BedCount)
+        );
+    DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' old row(s) expired in DimRoom.');
+
+    -- Step 3b: Insert new versions for expired records AND insert brand new rooms.
     INSERT INTO DimRoom (RoomID, RoomType, BedCount, HotelID, EffectiveDate, ExpiryDate, CurrentFlag)
     SELECT
         r.room_id,
@@ -384,13 +381,13 @@ BEGIN
         NULL,    -- Not expired
         'Y'      -- Is the current version
     FROM Room r
-    JOIN DimRoom dr ON r.room_id = dr.RoomID
-    WHERE dr.ExpiryDate = SYSDATE - 1; -- Find the records we just expired in the previous step
-    DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted for SCD2 Step 2 (DimRoom).');
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM DimRoom dr
+        WHERE dr.RoomID = r.room_id AND dr.CurrentFlag = 'Y'
+    );
+    DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' new/updated row(s) inserted into DimRoom.');
 
-    -- (4) Implement SCD Type 2 for DimFacility (if needed, logic is identical to DimRoom)
-    -- For this assignment, we assume facilities do not change frequently.
-    -- The logic would be the same as for DimRoom if attributes were expected to change.
 
     COMMIT;
     DBMS_OUTPUT.PUT_LINE('Subsequent dimension load completed.');
@@ -400,6 +397,7 @@ EXCEPTION
         ROLLBACK;
 END P_SUBSEQUENT_LOAD_DIMENSIONS;
 /
+
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_SUBSEQUENT_LOAD_FACTS
@@ -491,6 +489,8 @@ END P_RUN_SUBSEQUENT_LOAD;
 -- =================================================================================
 -- Execution Block
 -- To run the ETL, you would execute one of the following commands:
+--
+-- SET SERVEROUTPUT ON;
 --
 -- For the first-time load:
 -- BEGIN
