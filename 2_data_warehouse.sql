@@ -82,7 +82,7 @@ CREATE TABLE DimHotel (
     PostalCode VARCHAR2(20),
     Rating NUMBER(2,1),
     Email VARCHAR2(100),
-    Phone VARCHAR2(20),
+    Phone VARCHAR2(25),
     CONSTRAINT pk_dim_hotel PRIMARY KEY (HotelKey)
 );
 

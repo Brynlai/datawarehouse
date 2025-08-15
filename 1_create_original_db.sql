@@ -77,7 +77,7 @@ CREATE SEQUENCE service_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE TABLE Hotel (
     hotel_id NUMBER(10) NOT NULL,
     email VARCHAR2(100) UNIQUE,
-    phone VARCHAR2(20) NOT NULL,
+    phone VARCHAR2(25) NOT NULL,
     rating NUMBER(2,1),
     city VARCHAR2(100) NOT NULL,
     region VARCHAR2(100),
@@ -93,7 +93,7 @@ CREATE TABLE Guest (
     first_name VARCHAR2(50) NOT NULL,
     last_name VARCHAR2(50) NOT NULL,
     email VARCHAR2(100) UNIQUE,
-    phone VARCHAR2(20) NOT NULL,
+    phone VARCHAR2(25) NOT NULL,
     city VARCHAR2(100) NOT NULL,
     region VARCHAR2(100),
     state VARCHAR2(100) NOT NULL,
