@@ -73,6 +73,5 @@ JOIN
 ORDER BY
     ha.Rating DESC,
     ha.Hotel_ADR ASC;
-/
 
 TTITLE OFF
