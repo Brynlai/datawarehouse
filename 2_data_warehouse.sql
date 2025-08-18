@@ -1,12 +1,11 @@
 -- ====================================================================
--- Production-Ready Data Warehouse DDL (FIXED VERSION)
+-- Production-Ready Data Warehouse DDL (REVISED PER PRACTICAL 6)
 -- Database: Oracle 11g
 -- Execution: This script is idempotent and can be run in its entirety.
 --
--- Fixes Applied:
--- 1. DimDate: Removed redundant 'HolidayName' column.
--- 2. Star Schema: Removed 'HotelID' from DimRoom and DimFacility.
--- 3. DimFacility: Converted from SCD Type 2 to SCD Type 1.
+-- REVISIONS:
+-- 1. Added direct FOREIGN KEY constraints from Dimension tables back to
+--    the source OLTP tables, as shown in the academic practical.
 -- ====================================================================
 
 -- Part 0: CLEANUP SCRIPT
@@ -69,17 +68,18 @@ CREATE SEQUENCE dim_facility_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 -- --------------------------------------------------------------------
 CREATE TABLE DimGuest (
     GuestKey NUMBER(10) NOT NULL,
-    GuestID NUMBER(10),
+    GuestID NUMBER(10) NOT NULL,
     GuestFullName VARCHAR2(101) NOT NULL,
     State VARCHAR2(100),
     Country VARCHAR2(100),
     Region VARCHAR2(100),
-    CONSTRAINT pk_dim_guest PRIMARY KEY (GuestKey)
+    CONSTRAINT pk_dim_guest PRIMARY KEY (GuestKey),
+    CONSTRAINT fk_dim_guest_oltp FOREIGN KEY (GuestID) REFERENCES Guest(guest_id)
 );
 
 CREATE TABLE DimHotel (
     HotelKey NUMBER(10) NOT NULL,
-    HotelID NUMBER(10),
+    HotelID NUMBER(10) NOT NULL,
     City VARCHAR2(100),
     Region VARCHAR2(100),
     State VARCHAR2(100),
@@ -88,10 +88,10 @@ CREATE TABLE DimHotel (
     Rating NUMBER(2,1),
     Email VARCHAR2(100),
     Phone VARCHAR2(25),
-    CONSTRAINT pk_dim_hotel PRIMARY KEY (HotelKey)
+    CONSTRAINT pk_dim_hotel PRIMARY KEY (HotelKey),
+    CONSTRAINT fk_dim_hotel_oltp FOREIGN KEY (HotelID) REFERENCES Hotel(hotel_id)
 );
 
--- CORRECTED: Removed HotelID to adhere to Star Schema.
 CREATE TABLE DimRoom (
     RoomKey NUMBER(10) NOT NULL,
     RoomID NUMBER(10) NOT NULL,
@@ -101,10 +101,10 @@ CREATE TABLE DimRoom (
     ExpiryDate DATE,
     CurrentFlag CHAR(1) NOT NULL,
     CONSTRAINT pk_dim_room PRIMARY KEY (RoomKey),
+    CONSTRAINT fk_dim_room_oltp FOREIGN KEY (RoomID) REFERENCES Room(room_id),
     CONSTRAINT chk_dimroom_currentflag CHECK (CurrentFlag IN ('Y', 'N'))
 );
 
--- CORRECTED: Removed HolidayName, consolidated into FestivalEvent.
 CREATE TABLE DimDate (
     DateKey NUMBER(10) NOT NULL,
     FullDate DATE UNIQUE NOT NULL,
@@ -126,14 +126,13 @@ CREATE TABLE DimDate (
     CONSTRAINT chk_dimdate_isholiday CHECK (IsHoliday IN ('Y', 'N'))
 );
 
--- CORRECTED: Converted to SCD Type 1 and removed HotelID.
 CREATE TABLE DimFacility (
     FacilityKey NUMBER(10) NOT NULL,
-    FacilityID NUMBER(10) NOT NULL,
+    FacilityID NUMBER(10) NOT NULL, -- This is the Service_ID from OLTP
     FacilityName VARCHAR2(100) NOT NULL,
     FacilityType VARCHAR2(100) NOT NULL,
     CONSTRAINT pk_dim_facility PRIMARY KEY (FacilityKey),
-    CONSTRAINT chk_dimfacility_type CHECK (FacilityType IN ('Recreation', 'Business', 'Dining', 'Wellness'))
+    CONSTRAINT fk_dim_facility_oltp FOREIGN KEY (FacilityID) REFERENCES Service(service_id)
 );
 
 CREATE TABLE FactBookingRoom (
@@ -145,7 +144,7 @@ CREATE TABLE FactBookingRoom (
     BookingDetailID NUMBER(10) NOT NULL,
     DurationDays NUMBER(3) NOT NULL,
     RoomPricePerNight NUMBER(10,2) NOT NULL,
-    BookingTotalAmount NUMBER(12,2) NOT NULL,
+    CalculatedBookingAmount NUMBER(12,2) NOT NULL,
     CONSTRAINT pk_fact_booking PRIMARY KEY (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID),
     CONSTRAINT fk_fb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_fb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
@@ -159,8 +158,9 @@ CREATE TABLE FactFacilityBooking (
     HotelKey NUMBER(10) NOT NULL,
     DateKey NUMBER(10) NOT NULL,
     FacilityBookingID NUMBER(10) NOT NULL,
-    BookingFee NUMBER(10,2) NOT NULL,
-    DurationHours NUMBER(4,1),
+    FacilityQuantity NUMBER(3) NOT NULL,
+    FacilityUnitPrice NUMBER(10,2) NOT NULL,
+    FacilityTotalAmount NUMBER(12,2) NOT NULL,
     CONSTRAINT pk_fact_facility PRIMARY KEY (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID),
     CONSTRAINT fk_ffb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_ffb_facility FOREIGN KEY (FacilityKey) REFERENCES DimFacility(FacilityKey),

@@ -1,72 +1,78 @@
--- Report 3: Operational Efficiency: Hotel Upselling Performance Analysis
--- Set session and formatting for a professional report output
-ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
-SET LINESIZE 130
-SET PAGESIZE 50
-SET HEADING ON
+--------------------------------------------------------------------------------
+-- Report 3 (FINAL, CORRECTED): Ancillary Performance with Global Peer Ranking
+-- Purpose: Identifies top-performing hotels by ranking them against their
+--          global peers (by rating) and breaks down ancillary revenue by type
+--          to reveal the drivers of success.
+--------------------------------------------------------------------------------
 
--- Clear previous formats to ensure a clean slate
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
+-- Formatting commands for the enhanced report
+SET LINESIZE 170
+SET PAGESIZE 100
+COLUMN "Hotel ID" FORMAT 9999
+COLUMN "Global Peer Rank" FORMAT A16
+COLUMN City FORMAT A20
+COLUMN Country FORMAT A25
+COLUMN "Ancillary/Night" FORMAT $99,990.00
+COLUMN "Dining" FORMAT $9,999,990
+COLUMN "Business" FORMAT $9,999,990
+COLUMN "Recreation" FORMAT $9,999,990
+COLUMN "Wellness" FORMAT $9,999,990
 
-TTITLE CENTER 'Operational Efficiency Report' SKIP 1 CENTER 'Hotel Upselling Performance (Ancillary vs. Room Revenue) for 2023' SKIP 2
-
--- Define column formats for perfect alignment
-COLUMN Hotel_Location FORMAT A50 HEADING 'Hotel Location'
-COLUMN Room_Revenue FORMAT $999,999,990.00 HEADING 'Total Room Revenue'
-COLUMN Facility_Revenue FORMAT $999,999,990.00 HEADING 'Total Facility Revenue'
-COLUMN Ancillary_Revenue_Ratio FORMAT A20 HEADING 'Upsell Ratio (%)'
-
--- CTE for aggregating Room Revenue per hotel
-WITH HotelRoomRevenue AS (
+-- Main Query
+WITH
+  HotelRoomMetrics AS (
+    SELECT HotelKey, SUM(DurationDays) AS TotalRoomNights
+    FROM FactBookingRoom
+    GROUP BY HotelKey
+  ),
+  HotelFacilityBreakdown AS (
+    -- Step 1: Aggregate facility revenue by hotel AND by facility type
     SELECT
-        fbr.HotelKey,
-        SUM(fbr.BookingTotalAmount) AS Total_Room_Revenue
-    FROM
-        FactBookingRoom fbr
-    JOIN
-        DimDate dd ON fbr.DateKey = dd.DateKey
-    WHERE
-        dd.Year = 2023
-    GROUP BY
-        fbr.HotelKey
-),
--- CTE for aggregating Facility Revenue per hotel
-HotelFacilityRevenue AS (
+      ffb.HotelKey,
+      df.FacilityType,
+      SUM(ffb.FacilityTotalAmount) AS TypeRevenue
+    FROM FactFacilityBooking ffb
+    JOIN DimFacility df ON ffb.FacilityKey = df.FacilityKey
+    GROUP BY ffb.HotelKey, df.FacilityType
+  ),
+  HotelPerformance AS (
+    -- Step 2: Pivot the breakdown data and calculate the final KPI
     SELECT
-        ffb.HotelKey,
-        SUM(ffb.BookingFee) AS Total_Facility_Revenue
-    FROM
-        FactFacilityBooking ffb
-    JOIN
-        DimDate dd ON ffb.DateKey = dd.DateKey
-    WHERE
-        dd.Year = 2023
+      hrm.HotelKey,
+      dh.HotelID,
+      dh.City,
+      dh.Country,
+      dh.Rating,
+      SUM(CASE WHEN hfb.FacilityType = 'Dining' THEN hfb.TypeRevenue ELSE 0 END) AS DiningRevenue,
+      SUM(CASE WHEN hfb.FacilityType = 'Business' THEN hfb.TypeRevenue ELSE 0 END) AS BusinessRevenue,
+      SUM(CASE WHEN hfb.FacilityType = 'Recreation' THEN hfb.TypeRevenue ELSE 0 END) AS RecreationRevenue,
+      SUM(CASE WHEN hfb.FacilityType = 'Wellness' THEN hfb.TypeRevenue ELSE 0 END) AS WellnessRevenue,
+      CASE
+        WHEN NVL(hrm.TotalRoomNights, 0) = 0 THEN 0
+        ELSE SUM(hfb.TypeRevenue) / hrm.TotalRoomNights
+      END AS AncillaryPerNight
+    FROM HotelRoomMetrics hrm
+    LEFT JOIN HotelFacilityBreakdown hfb ON hrm.HotelKey = hfb.HotelKey
+    JOIN DimHotel dh ON hrm.HotelKey = dh.HotelKey
+    WHERE hrm.TotalRoomNights > 0
     GROUP BY
-        ffb.HotelKey
-)
--- Final SELECT to join the two revenue streams and calculate the ratio
+      hrm.HotelKey, dh.HotelID, dh.City, dh.Country, dh.Rating, hrm.TotalRoomNights
+  )
+-- Final Presentation Layer with GLOBAL Peer Group Ranking
 SELECT
-    dh.City || ', ' || dh.Country AS Hotel_Location,
-    NVL(rrr.Total_Room_Revenue, 0) AS Room_Revenue,
-    NVL(frr.Total_Facility_Revenue, 0) AS Facility_Revenue,
-    LPAD(
-        CASE
-            WHEN NVL(rrr.Total_Room_Revenue, 0) > 0
-            THEN TO_CHAR((NVL(frr.Total_Facility_Revenue, 0) / rrr.Total_Room_Revenue) * 100, '990.00') || '%'
-            ELSE '0.00%'
-        END, 20, ' ') AS Ancillary_Revenue_Ratio
-FROM
-    DimHotel dh
-LEFT JOIN
-    HotelRoomRevenue rrr ON dh.HotelKey = rrr.HotelKey
-LEFT JOIN
-    HotelFacilityRevenue frr ON dh.HotelKey = frr.HotelKey
-WHERE
-    rrr.Total_Room_Revenue IS NOT NULL OR frr.Total_Facility_Revenue IS NOT NULL
-ORDER BY
-    (NVL(frr.Total_Facility_Revenue, 0) / NVL(rrr.Total_Room_Revenue, 1)) DESC;
+  hp.HotelID AS "Hotel ID",
+  -- *** THIS LOGIC IS NOW CORRECTED TO PARTITION BY RATING ONLY ***
+  hp.Rating || ' Star: ' ||
+  (RANK() OVER (PARTITION BY hp.Rating ORDER BY hp.AncillaryPerNight DESC)) || ' of ' ||
+  (COUNT(*) OVER (PARTITION BY hp.Rating)) AS "Global Peer Rank",
+  hp.City,
+  hp.Country,
+  hp.AncillaryPerNight AS "Ancillary/Night",
+  hp.DiningRevenue AS "Dining",
+  hp.BusinessRevenue AS "Business",
+  hp.RecreationRevenue AS "Recreation",
+  hp.WellnessRevenue AS "Wellness"
+FROM HotelPerformance hp
+ORDER BY hp.Rating DESC, "Ancillary/Night" DESC;
 
--- Turn off the title for subsequent queries
-TTITLE OFF
+CLEAR COLUMNS;
