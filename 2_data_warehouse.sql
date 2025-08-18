@@ -1,11 +1,14 @@
 -- ====================================================================
--- Production-Ready Data Warehouse DDL (REVISED PER PRACTICAL 6)
+-- Production-Ready Data Warehouse DDL (REVISED PER PRACTICAL 6 - FINAL)
 -- Database: Oracle 11g
 -- Execution: This script is idempotent and can be run in its entirety.
 --
 -- REVISIONS:
--- 1. Added direct FOREIGN KEY constraints from Dimension tables back to
---    the source OLTP tables, as shown in the academic practical.
+-- 1. Added direct FOREIGN KEY constraints from Dimension tables to OLTP.
+-- 2. Added Degenerate Dimensions (BookingID, FacilityBookingID) to Fact
+--    tables with FOREIGN KEYs to their respective OLTP source tables.
+-- 3. Added the Degenerate Dimensions to the composite primary keys of
+--    the Fact tables to ensure row uniqueness.
 -- ====================================================================
 
 -- Part 0: CLEANUP SCRIPT
@@ -140,16 +143,21 @@ CREATE TABLE FactBookingRoom (
     HotelKey NUMBER(10) NOT NULL,
     RoomKey NUMBER(10) NOT NULL,
     DateKey NUMBER(10) NOT NULL,
+    -- Degenerate Dimensions from Image
     BookingID NUMBER(10) NOT NULL,
     BookingDetailID NUMBER(10) NOT NULL,
+    -- Measures
     DurationDays NUMBER(3) NOT NULL,
     RoomPricePerNight NUMBER(10,2) NOT NULL,
     CalculatedBookingAmount NUMBER(12,2) NOT NULL,
+    -- REVISED: Added degenerate dimensions to the composite primary key
     CONSTRAINT pk_fact_booking PRIMARY KEY (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID),
     CONSTRAINT fk_fb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_fb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
     CONSTRAINT fk_fb_room FOREIGN KEY (RoomKey) REFERENCES DimRoom(RoomKey),
-    CONSTRAINT fk_fb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey)
+    CONSTRAINT fk_fb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey),
+    -- REVISED: Added FK constraint for the degenerate dimension to the source OLTP table
+    CONSTRAINT fk_fb_bookingdetail_oltp FOREIGN KEY (BookingID, BookingDetailID) REFERENCES BookingDetail(booking_id, room_id)
 );
 
 CREATE TABLE FactFacilityBooking (
@@ -157,15 +165,20 @@ CREATE TABLE FactFacilityBooking (
     FacilityKey NUMBER(10) NOT NULL,
     HotelKey NUMBER(10) NOT NULL,
     DateKey NUMBER(10) NOT NULL,
+    -- Degenerate Dimension from Image
     FacilityBookingID NUMBER(10) NOT NULL,
+    -- Measures
     FacilityQuantity NUMBER(3) NOT NULL,
     FacilityUnitPrice NUMBER(10,2) NOT NULL,
     FacilityTotalAmount NUMBER(12,2) NOT NULL,
+    -- REVISED: Added degenerate dimension to the composite primary key
     CONSTRAINT pk_fact_facility PRIMARY KEY (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID),
     CONSTRAINT fk_ffb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_ffb_facility FOREIGN KEY (FacilityKey) REFERENCES DimFacility(FacilityKey),
     CONSTRAINT fk_ffb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
-    CONSTRAINT fk_ffb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey)
+    CONSTRAINT fk_ffb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey),
+    -- REVISED: Added FK constraint for the degenerate dimension to the source OLTP table
+    CONSTRAINT fk_ffb_service_oltp FOREIGN KEY (FacilityBookingID) REFERENCES Service(service_id)
 );
 
 

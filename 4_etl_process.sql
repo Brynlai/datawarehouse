@@ -1,14 +1,8 @@
 -- =================================================================================
--- ETL PROCESSES (REVISED PER PRACTICAL 6)
+-- ETL PROCESSES (REVISED PER PRACTICAL 6 - FINAL)
 -- Database:     Oracle 11g
 -- Description:  This script contains all ETL procedures for the initial and
 --               subsequent loading of the Hotel Analytics Data Warehouse.
---
--- REVISIONS:
--- 1. ETL is now aligned with the strict integrity model from the practical.
--- 2. Removed 'Unknown Member' logic as it's incompatible with direct FKs.
--- 3. Reverted dimension lookups in Fact loads to INNER JOINs. An ETL failure
---    will occur on data mismatch, which is the expected behavior in this model.
 -- =================================================================================
 
 -- Set server output on to see execution status messages
@@ -60,7 +54,6 @@ END P_LOAD_DIM_DATE;
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_DIMENSIONS
--- REVISED: Removed 'Unknown Member' records.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_DIMENSIONS AS
 BEGIN
@@ -83,7 +76,7 @@ BEGIN
         room_type,
         bed_count,
         TO_DATE('2000-01-01', 'YYYY-MM-DD'),
-        TO_DATE('9999-12-31', 'YYYY-MM-DD'), -- Use far-future date
+        TO_DATE('9999-12-31', 'YYYY-MM-DD'),
         'Y'
     FROM Room;
     DBMS_OUTPUT.PUT_LINE(SQL%ROWCOUNT || ' rows inserted into DimRoom.');
@@ -108,7 +101,6 @@ END P_INITIAL_LOAD_DIMENSIONS;
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_FACTS
--- REVISED: Reverted to INNER JOINs to align with the strict FK model.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_FACTS AS
 BEGIN
@@ -123,7 +115,7 @@ BEGIN
         bd.room_id,
         bd.duration_days,
         r.price,
-        (bd.duration_days * r.price) -- Calculated in ETL
+        (bd.duration_days * r.price)
     FROM BookingDetail bd
     JOIN Booking b ON bd.booking_id = b.booking_id
     JOIN Room r ON bd.room_id = r.room_id
@@ -163,10 +155,12 @@ END P_INITIAL_LOAD_FACTS;
 
 -- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_INITIAL_LOAD
+-- REVISED: Added disabling/enabling for new OLTP foreign keys
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_INITIAL_LOAD AS
 BEGIN
     DBMS_OUTPUT.PUT_LINE('--- Starting Initial Data Warehouse Load ---');
+    -- Disable DWH-internal keys
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_guest';
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_room';
@@ -175,6 +169,9 @@ BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_facility';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_date';
+    -- *** NEW: Disable keys pointing to OLTP ***
+    EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_bookingdetail_oltp';
+    EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_service_oltp';
     DBMS_OUTPUT.PUT_LINE('Fact table constraints disabled.');
 
     EXECUTE IMMEDIATE 'TRUNCATE TABLE FactBookingRoom';
@@ -190,6 +187,7 @@ BEGIN
     P_INITIAL_LOAD_DIMENSIONS;
     P_INITIAL_LOAD_FACTS;
 
+    -- Enable DWH-internal keys
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_guest';
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_room';
@@ -198,6 +196,9 @@ BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_facility';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_date';
+    -- *** NEW: Enable keys pointing to OLTP ***
+    EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_bookingdetail_oltp';
+    EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_service_oltp';
     DBMS_OUTPUT.PUT_LINE('Fact table constraints re-enabled.');
 
     DBMS_OUTPUT.PUT_LINE('--- Initial Data Warehouse Load Completed Successfully ---');
@@ -288,7 +289,6 @@ END P_SUBSEQUENT_LOAD_DIMENSIONS;
 
 -- ---------------------------------------------------------------------------------
 -- Procedure: P_SUBSEQUENT_LOAD_FACTS
--- REVISED: Reverted to INNER JOINs.
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_FACTS AS
 BEGIN
@@ -338,15 +338,6 @@ EXCEPTION
 END P_SUBSEQUENT_LOAD_FACTS;
 /
 
--- SET SERVEROUTPUT ON;
-
--- BEGIN
---   P_RUN_SUBSEQUENT_LOAD;
--- END;
--- /
-
-
---- Extra Stuff:
 -- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_SUBSEQUENT_LOAD
 -- ---------------------------------------------------------------------------------

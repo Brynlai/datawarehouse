@@ -1,17 +1,18 @@
---------------------------------------------------------------------------------
--- Report 1: Multi-Year Revenue Performance & Growth (FIXED)
--- Purpose: Tracks total revenue (Rooms + Facilities) and calculates YoY growth
---          to provide a strategic overview of long-term business health.
---------------------------------------------------------------------------------
+-- Report 1: Multi-Year Revenue Performance and Growth
 
--- Formatting commands for clean, readable output in SQL*Plus
-SET LINESIZE 150
-SET PAGESIZE 50
-COLUMN "Total Room Revenue" FORMAT A20
-COLUMN "Total Facility Revenue" FORMAT A22
-COLUMN "Grand Total Revenue" FORMAT A21
-COLUMN "Previous Year Revenue" FORMAT A22
-COLUMN "YoY Growth %" FORMAT A12
+-- Setup the page and title for the report
+SET PAGESIZE 25
+SET LINESIZE 140
+TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Annual Revenue Performance and Growth' SKIP 2
+BTITLE CENTER 'Report Generated on: ' _DATE
+
+-- Define the column formats and headings
+COLUMN "Revenue Year"           FORMAT 9999 HEADING 'Year'
+COLUMN "Total Room Revenue"     FORMAT A22  HEADING 'Total Room Revenue'
+COLUMN "Total Facility Revenue" FORMAT A24  HEADING 'Total Facility Revenue'
+COLUMN "Grand Total Revenue"    FORMAT A23  HEADING 'Grand Total Revenue'
+COLUMN "Previous Year Revenue"  FORMAT A23  HEADING 'Previous Year Revenue'
+COLUMN "YoY Growth %"           FORMAT A14  HEADING 'YoY Growth %'
 
 -- Main Query
 WITH
@@ -34,7 +35,7 @@ WITH
     FROM AnnualRoomRevenue r FULL OUTER JOIN AnnualFacilityRevenue f ON r.Year = f.Year
   )
 SELECT
-  RevenueYear,
+  RevenueYear AS "Revenue Year",
   TO_CHAR(TotalRoomRevenue, 'FM$999,999,999,990') AS "Total Room Revenue",
   TO_CHAR(TotalFacilityRevenue, 'FM$999,999,999,990') AS "Total Facility Revenue",
   TO_CHAR(TotalRevenue, 'FM$999,999,999,990') AS "Grand Total Revenue",
@@ -46,5 +47,7 @@ SELECT
 FROM TotalAnnualRevenue
 ORDER BY RevenueYear;
 
--- Clear the formatting for subsequent queries
-CLEAR COLUMNS;
+-- Clean up the report settings
+CLEAR COLUMNS
+TTITLE OFF
+BTITLE OFF
