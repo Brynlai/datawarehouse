@@ -1,23 +1,24 @@
 import os
 from faker import Faker
 import random
-# CORRECTED: Added 'date' to the import
 from datetime import datetime, timedelta, date
 
-# --- Configuration ---
+# --- Configuration (REVISED) ---
 NUM_HOTELS = 20
-NUM_GUESTS = 3000
+NUM_GUESTS = 10000
 NUM_JOBS = 15
 NUM_ROOMS_PER_HOTEL = 50
 NUM_SERVICES_PER_HOTEL = 10
 NUM_DEPTS_PER_HOTEL = 5
 NUM_EMPLOYEES_PER_HOTEL = 30
-NUM_BOOKINGS = 8000
-NUM_BOOKING_DETAILS = 10000
-NUM_GUEST_SERVICES = 10000
 
-# CORRECTED: Changed from datetime() to date() to prevent type mismatch errors
-DWH_START_DATE = date(2020, 1, 1)
+# Increased record counts
+NUM_BOOKINGS = 100000
+NUM_BOOKING_DETAILS = 120000
+NUM_GUEST_SERVICES = 100000
+
+# Expanded to 15-year range
+DWH_START_DATE = date(2010, 1, 1)
 DWH_END_DATE = date(2024, 12, 31)
 
 OUTPUT_FILE = "3_insert_data.sql"
@@ -37,6 +38,7 @@ employee_ids = list(range(1, (NUM_HOTELS * NUM_EMPLOYEES_PER_HOTEL) + 1))
 
 # --- Sets for ensuring uniqueness ---
 unique_emails = set()
+service_prices = {} # To store service prices for later calculation
 
 def get_unique_email(name):
     """Generates a unique email to avoid constraint violations."""
@@ -110,16 +112,29 @@ def generate_rooms(f):
             room_id_counter += 1
     f.write("\n")
 
+# REVISED: Added service_type
 def generate_services(f):
     f.write("-- (6) Services\n")
-    service_names = ['Airport Shuttle', 'Room Service', 'Laundry Service', 'Spa Treatment', 'Gym Access', 'Valet Parking', 'Conference Room Rental', 'Bike Rental', 'City Tour Package', 'Pet Care']
+    service_definitions = {
+        'Airport Shuttle': 'Transport',
+        'Room Service': 'Dining',
+        'Laundry Service': 'Convenience',
+        'Spa Treatment': 'Wellness',
+        'Gym Access': 'Recreation',
+        'Valet Parking': 'Transport',
+        'Conference Room Rental': 'Business',
+        'Bike Rental': 'Recreation',
+        'City Tour Package': 'Recreation',
+        'Pet Care': 'Convenience'
+    }
     service_id_counter = 1
     for hotel_id in hotel_ids:
-        for name in service_names:
+        for name, s_type in service_definitions.items():
             service_ids.append(service_id_counter)
             price = round(random.uniform(15.0, 200.0), 2)
+            service_prices[service_id_counter] = price  # Store price for later use
             desc = escape_sql_string(f"Provides convenient {name} for our valued guests.")
-            sql = f"INSERT INTO Service (service_id, description, service_name, service_price, hotel_id) VALUES ({service_id_counter}, '{desc}', '{name}', {price}, {hotel_id});\n"
+            sql = f"INSERT INTO Service (service_id, description, service_name, service_price, service_type, hotel_id) VALUES ({service_id_counter}, '{desc}', '{name}', {price}, '{s_type}', {hotel_id});\n"
             f.write(sql)
             service_id_counter += 1
     f.write("\n")
@@ -170,22 +185,27 @@ def generate_booking_details(f):
         f.write(sql)
     f.write("\n")
 
+# REVISED: Added quantity, total_amount and changed PK logic
 def generate_guest_services(f):
     f.write("-- (10) GuestServices\n")
-    used_guest_service_pairs = set()
+    used_guest_service_date_triplets = set()
     for _ in range(NUM_GUEST_SERVICES):
         while True:
             guest_id = random.choice(guest_ids)
             service_id = random.choice(service_ids)
-            if (guest_id, service_id) not in used_guest_service_pairs:
-                 used_guest_service_pairs.add((guest_id, service_id))
+            usage_date = fake.date_between_dates(date_start=DWH_START_DATE, date_end=DWH_END_DATE)
+            if (guest_id, service_id, usage_date) not in used_guest_service_date_triplets:
+                 used_guest_service_date_triplets.add((guest_id, service_id, usage_date))
                  break
-        usage_date = fake.date_between_dates(date_start=DWH_START_DATE, date_end=DWH_END_DATE)
         booking_date = usage_date - timedelta(days=random.randint(0, 60))
-        # This comparison will now work correctly (date vs date)
         if booking_date < DWH_START_DATE:
             booking_date = DWH_START_DATE
-        sql = f"INSERT INTO GuestService (guest_id, service_id, booking_date, usage_date) VALUES ({guest_id}, {service_id}, TO_DATE('{booking_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD'), TO_DATE('{usage_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD'));\n"
+
+        quantity = random.randint(1, 3)
+        unit_price = service_prices.get(service_id, 0)
+        total_amount = round(quantity * unit_price, 2)
+
+        sql = f"INSERT INTO GuestService (guest_id, service_id, booking_date, usage_date, quantity, total_amount) VALUES ({guest_id}, {service_id}, TO_DATE('{booking_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD'), TO_DATE('{usage_date.strftime('%Y-%m-%d')}', 'YYYY-MM-DD'), {quantity}, {total_amount});\n"
         f.write(sql)
     f.write("\n")
 
@@ -195,7 +215,7 @@ if __name__ == "__main__":
     print(f"Starting data generation at {start_time.strftime('%H:%M:%S')}...")
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("-- ====================================================================\n")
-        f.write("-- Generated OLTP Insert Data for Oracle 11g\n")
+        f.write("-- Generated OLTP Insert Data for Oracle 11g (REVISED)\n")
         f.write("-- ====================================================================\n\n")
         f.write("-- Disable PK triggers to allow explicit ID insertion\n")
         f.write("ALTER TRIGGER trg_hotel_pk DISABLE;\n")

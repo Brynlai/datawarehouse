@@ -1,71 +1,50 @@
--- Report 1: Strategic Performance Review: Year-over-Year (YoY) Revenue Growth
--- Set session and formatting for a professional report output
-ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
-SET LINESIZE 130
+--------------------------------------------------------------------------------
+-- Report 1: Multi-Year Revenue Performance & Growth (FIXED)
+-- Purpose: Tracks total revenue (Rooms + Facilities) and calculates YoY growth
+--          to provide a strategic overview of long-term business health.
+--------------------------------------------------------------------------------
+
+-- Formatting commands for clean, readable output in SQL*Plus
+SET LINESIZE 150
 SET PAGESIZE 50
-SET HEADING ON
+COLUMN "Total Room Revenue" FORMAT A20
+COLUMN "Total Facility Revenue" FORMAT A22
+COLUMN "Grand Total Revenue" FORMAT A21
+COLUMN "Previous Year Revenue" FORMAT A22
+COLUMN "YoY Growth %" FORMAT A12
 
--- Clear previous formats to ensure a clean slate
-CLEAR COLUMNS
-CLEAR BREAKS
-CLEAR COMPUTES
-
-TTITLE CENTER 'Strategic Performance Report' SKIP 1 CENTER 'Year-over-Year Room Revenue Growth by Country (2023 vs 2022)' SKIP 2
-
--- Define column formats for perfect alignment and readability
-COLUMN Country FORMAT A40 HEADING 'Country'
-COLUMN Revenue_Year FORMAT 9999 HEADING 'Year'
-COLUMN Total_Revenue FORMAT 999,999,990.00 HEADING '2023 Revenue'
-COLUMN Previous_Year_Revenue FORMAT 999,999,990.00 HEADING '2022 Revenue'
-COLUMN YoY_Growth_Percentage FORMAT A15 HEADING 'YoY Growth (%)'
-
--- Use a CTE to first aggregate revenue by country and year
-WITH CountryYearlyRevenue AS (
+-- Main Query
+WITH
+  AnnualRoomRevenue AS (
+    SELECT dd.Year, SUM(fbr.CalculatedBookingAmount) AS RoomRevenue
+    FROM FactBookingRoom fbr JOIN DimDate dd ON fbr.DateKey = dd.DateKey
+    GROUP BY dd.Year
+  ),
+  AnnualFacilityRevenue AS (
+    SELECT dd.Year, SUM(ffb.FacilityTotalAmount) AS FacilityRevenue
+    FROM FactFacilityBooking ffb JOIN DimDate dd ON ffb.DateKey = dd.DateKey
+    GROUP BY dd.Year
+  ),
+  TotalAnnualRevenue AS (
     SELECT
-        dh.Country,
-        dd.Year AS Revenue_Year,
-        SUM(fbr.BookingTotalAmount) AS Annual_Revenue
-    FROM
-        FactBookingRoom fbr
-    JOIN
-        DimHotel dh ON fbr.HotelKey = dh.HotelKey
-    JOIN
-        DimDate dd ON fbr.DateKey = dd.DateKey
-    WHERE
-        dd.Year IN (2022, 2023)
-    GROUP BY
-        dh.Country,
-        dd.Year
-),
--- Use a second CTE with the LAG() window function to get the previous year's data
-YoY_Comparison AS (
-    SELECT
-        Country,
-        Revenue_Year,
-        Annual_Revenue,
-        LAG(Annual_Revenue, 1, 0) OVER (PARTITION BY Country ORDER BY Revenue_Year) AS Previous_Year_Revenue
-    FROM
-        CountryYearlyRevenue
-)
--- Final SELECT to calculate the growth percentage and format the output
+      COALESCE(r.Year, f.Year) AS RevenueYear,
+      NVL(r.RoomRevenue, 0) AS TotalRoomRevenue,
+      NVL(f.FacilityRevenue, 0) AS TotalFacilityRevenue,
+      (NVL(r.RoomRevenue, 0) + NVL(f.FacilityRevenue, 0)) AS TotalRevenue
+    FROM AnnualRoomRevenue r FULL OUTER JOIN AnnualFacilityRevenue f ON r.Year = f.Year
+  )
 SELECT
-    c.Country,
-    c.Revenue_Year,
-    c.Annual_Revenue AS Total_Revenue,
-    c.Previous_Year_Revenue,
-    -- Use LPAD to right-align the text-based percentage for clean viewing
-    LPAD(
-        CASE
-            WHEN c.Previous_Year_Revenue > 0
-            THEN TO_CHAR(((c.Annual_Revenue - c.Previous_Year_Revenue) / c.Previous_Year_Revenue) * 100, '990.00') || '%'
-            ELSE 'N/A (New Market)'
-        END, 15, ' ') AS YoY_Growth_Percentage
-FROM
-    YoY_Comparison c
-WHERE
-    c.Revenue_Year = 2023
-ORDER BY
-    ((c.Annual_Revenue - c.Previous_Year_Revenue) / c.Previous_Year_Revenue) DESC;
+  RevenueYear,
+  TO_CHAR(TotalRoomRevenue, 'FM$999,999,999,990') AS "Total Room Revenue",
+  TO_CHAR(TotalFacilityRevenue, 'FM$999,999,999,990') AS "Total Facility Revenue",
+  TO_CHAR(TotalRevenue, 'FM$999,999,999,990') AS "Grand Total Revenue",
+  TO_CHAR(LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear), 'FM$999,999,999,990') AS "Previous Year Revenue",
+  CASE
+    WHEN LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) = 0 THEN 'N/A'
+    ELSE TO_CHAR(((TotalRevenue - LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) / LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) * 100, 'FM990.00') || '%'
+  END AS "YoY Growth %"
+FROM TotalAnnualRevenue
+ORDER BY RevenueYear;
 
--- Turn off the title for subsequent queries
-TTITLE OFF
+-- Clear the formatting for subsequent queries
+CLEAR COLUMNS;

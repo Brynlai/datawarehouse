@@ -1,7 +1,13 @@
 -- ====================================================================
--- Production-Ready OLTP Database DDL
+-- Production-Ready OLTP Database DDL (REVISED)
 -- Database: Oracle 11g
 -- Execution: This script is idempotent and can be run in its entirety.
+--
+-- REVISIONS:
+-- 1. Added 'service_type' to Service table.
+-- 2. Added 'quantity' and 'total_amount' to GuestService table.
+-- 3. Changed GuestService PK to (guest_id, service_id, usage_date)
+--    to allow guests to book the same service on different days.
 -- ====================================================================
 
 -- Part 0: CLEANUP SCRIPT
@@ -140,14 +146,17 @@ CREATE TABLE Room (
     CONSTRAINT chk_room_type CHECK (room_type IN ('Single', 'Double', 'Suite', 'Deluxe', 'Family'))
 );
 
+-- REVISED: Added service_type
 CREATE TABLE Service (
     service_id NUMBER(10) NOT NULL,
     description VARCHAR2(255),
     service_name VARCHAR2(100) NOT NULL,
     service_price NUMBER(10,2) NOT NULL,
+    service_type VARCHAR2(100) NOT NULL,
     hotel_id NUMBER(10) NOT NULL,
     CONSTRAINT pk_service PRIMARY KEY (service_id),
-    CONSTRAINT fk_service_hotel FOREIGN KEY (hotel_id) REFERENCES Hotel(hotel_id)
+    CONSTRAINT fk_service_hotel FOREIGN KEY (hotel_id) REFERENCES Hotel(hotel_id),
+    CONSTRAINT chk_service_type CHECK (service_type IN ('Recreation', 'Business', 'Dining', 'Wellness', 'Transport', 'Convenience'))
 );
 
 CREATE TABLE Employee (
@@ -174,12 +183,15 @@ CREATE TABLE BookingDetail (
     CONSTRAINT fk_bd_room FOREIGN KEY (room_id) REFERENCES Room(room_id)
 );
 
+-- REVISED: Added quantity, total_amount, and changed PK
 CREATE TABLE GuestService (
     guest_id NUMBER(10) NOT NULL,
     service_id NUMBER(10) NOT NULL,
     booking_date DATE NOT NULL,
     usage_date DATE NOT NULL,
-    CONSTRAINT pk_guestservice PRIMARY KEY (guest_id, service_id),
+    quantity NUMBER(3) NOT NULL,
+    total_amount NUMBER(10, 2) NOT NULL,
+    CONSTRAINT pk_guestservice PRIMARY KEY (guest_id, service_id, usage_date),
     CONSTRAINT fk_gs_guest FOREIGN KEY (guest_id) REFERENCES Guest(guest_id),
     CONSTRAINT fk_gs_service FOREIGN KEY (service_id) REFERENCES Service(service_id)
 );
