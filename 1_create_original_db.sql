@@ -1,16 +1,4 @@
--- ====================================================================
--- Production-Ready OLTP Database DDL (REVISED)
--- Database: Oracle 11g
--- Execution: This script is idempotent and can be run in its entirety.
---
--- REVISIONS:
--- 1. Added 'service_type' to Service table.
--- 2. Added 'quantity' and 'total_amount' to GuestService table.
--- 3. Changed GuestService PK to (guest_id, service_id, usage_date)
---    to allow guests to book the same service on different days.
--- ====================================================================
-
--- Part 0: CLEANUP SCRIPT
+-- Cleanup drop triggers tables sequences, ignore errors if not present
 -- --------------------------------------------------------------------
 BEGIN
    EXECUTE IMMEDIATE 'DROP TRIGGER trg_service_pk';
@@ -66,7 +54,7 @@ END;
 /
 
 
--- Part 1: SEQUENCES
+-- Sequences
 -- --------------------------------------------------------------------
 CREATE SEQUENCE hotel_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE guest_seq START WITH 1 INCREMENT BY 1 NOCACHE;
@@ -78,7 +66,7 @@ CREATE SEQUENCE room_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE service_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 
 
--- Part 2: TABLES
+-- Tables
 -- --------------------------------------------------------------------
 CREATE TABLE Hotel (
     hotel_id NUMBER(10) NOT NULL,
@@ -146,7 +134,6 @@ CREATE TABLE Room (
     CONSTRAINT chk_room_type CHECK (room_type IN ('Single', 'Double', 'Suite', 'Deluxe', 'Family'))
 );
 
--- REVISED: Added service_type
 CREATE TABLE Service (
     service_id NUMBER(10) NOT NULL,
     description VARCHAR2(255),
@@ -183,7 +170,6 @@ CREATE TABLE BookingDetail (
     CONSTRAINT fk_bd_room FOREIGN KEY (room_id) REFERENCES Room(room_id)
 );
 
--- REVISED: Added quantity, total_amount, and changed PK
 CREATE TABLE GuestService (
     guest_id NUMBER(10) NOT NULL,
     service_id NUMBER(10) NOT NULL,
@@ -197,7 +183,7 @@ CREATE TABLE GuestService (
 );
 
 
--- Part 3: INDEXES
+-- Indexes
 -- --------------------------------------------------------------------
 CREATE INDEX idx_dept_hotel_id ON Department(hotel_id);
 CREATE INDEX idx_booking_guest_id ON Booking(guest_id);
@@ -211,7 +197,7 @@ CREATE INDEX idx_gs_guest_id ON GuestService(guest_id);
 CREATE INDEX idx_gs_service_id ON GuestService(service_id);
 
 
--- Part 4: TRIGGERS
+-- Triggers
 -- --------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER trg_hotel_pk BEFORE INSERT ON Hotel FOR EACH ROW BEGIN IF :NEW.hotel_id IS NULL THEN SELECT hotel_seq.NEXTVAL INTO :NEW.hotel_id FROM DUAL; END IF; END;
 /

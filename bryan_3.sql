@@ -22,7 +22,7 @@ BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _
 -- Define the column formats and headings for the report body.
 COLUMN "Global Peer Rank"   FORMAT A20
 COLUMN City                 FORMAT A25
-COLUMN Country              FORMAT A35
+COLUMN Country              FORMAT A40
 COLUMN "Ancillary/Night"    FORMAT $99,990.00
 COLUMN "Dining"             FORMAT $9,999,990
 COLUMN "Business"           FORMAT $9,999,990

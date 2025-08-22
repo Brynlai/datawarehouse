@@ -1,19 +1,16 @@
--- =================================================================================
--- ETL PROCESSES (REVISED PER PRACTICAL 6 - FINAL)
--- Database:     Oracle 11g
--- Description:  This script contains all ETL procedures for the initial and
---               subsequent loading of the Hotel Analytics Data Warehouse.
+-- ETL processes for data warehouse
+-- Oracle 11g
+-- initial and subsequent load procedures
 -- =================================================================================
 
--- Set server output on to see execution status messages
+-- enable DBMS output to show progress
 SET SERVEROUTPUT ON;
 
--- =================================================================================
--- Part 1: INITIAL LOADING OF THE DATA WAREHOUSE
+-- Part 1: initial load
 -- =================================================================================
 
--- ---------------------------------------------------------------------------------
 -- Procedure: P_LOAD_DIM_DATE
+-- populate DimDate between two dates
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_LOAD_DIM_DATE (
     p_start_date IN DATE,
@@ -52,8 +49,8 @@ EXCEPTION
 END P_LOAD_DIM_DATE;
 /
 
--- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_DIMENSIONS
+-- initial load for dimension tables
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_DIMENSIONS AS
 BEGIN
@@ -99,8 +96,8 @@ EXCEPTION
 END P_INITIAL_LOAD_DIMENSIONS;
 /
 
--- ---------------------------------------------------------------------------------
 -- Procedure: P_INITIAL_LOAD_FACTS
+-- initial load for fact tables
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_INITIAL_LOAD_FACTS AS
 BEGIN
@@ -153,9 +150,8 @@ EXCEPTION
 END P_INITIAL_LOAD_FACTS;
 /
 
--- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_INITIAL_LOAD
--- REVISED: Added disabling/enabling for new OLTP foreign keys
+-- runs the full initial load and toggles constraints for faster load
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_INITIAL_LOAD AS
 BEGIN
@@ -209,8 +205,7 @@ END P_RUN_INITIAL_LOAD;
 /
 
 
--- =================================================================================
--- Part 2: SUBSEQUENT LOADING OF THE DATA WAREHOUSE
+-- Part 2: subsequent load
 -- =================================================================================
 CREATE OR REPLACE VIEW V_CLEANSED_GUEST AS
 SELECT
@@ -219,8 +214,8 @@ SELECT
 FROM Guest;
 /
 
--- ---------------------------------------------------------------------------------
 -- Procedure: P_SUBSEQUENT_LOAD_DIMENSIONS
+-- merge changes into dimension tables
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_DIMENSIONS AS
 BEGIN
@@ -287,8 +282,8 @@ EXCEPTION
 END P_SUBSEQUENT_LOAD_DIMENSIONS;
 /
 
--- ---------------------------------------------------------------------------------
 -- Procedure: P_SUBSEQUENT_LOAD_FACTS
+-- load new fact rows since last run
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_SUBSEQUENT_LOAD_FACTS AS
 BEGIN
@@ -338,8 +333,8 @@ EXCEPTION
 END P_SUBSEQUENT_LOAD_FACTS;
 /
 
--- ---------------------------------------------------------------------------------
 -- Master Procedure: P_RUN_SUBSEQUENT_LOAD
+-- runs the incremental load
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_SUBSEQUENT_LOAD AS
 BEGIN

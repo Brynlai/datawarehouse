@@ -1,17 +1,11 @@
--- ====================================================================
--- Production-Ready Data Warehouse DDL (REVISED PER PRACTICAL 6 - FINAL)
--- Database: Oracle 11g
--- Execution: This script is idempotent and can be run in its entirety.
---
--- REVISIONS:
--- 1. Added direct FOREIGN KEY constraints from Dimension tables to OLTP.
--- 2. Added Degenerate Dimensions (BookingID, FacilityBookingID) to Fact
---    tables with FOREIGN KEYs to their respective OLTP source tables.
--- 3. Added the Degenerate Dimensions to the composite primary keys of
---    the Fact tables to ensure row uniqueness.
+-- Data warehouse DDL
+-- Oracle 11g
+-- Notes
+-- - dims have direct FKs back to the OLTP source when useful
+-- - fact tables include degenerate dims to keep row identity
 -- ====================================================================
 
--- Part 0: CLEANUP SCRIPT
+-- Cleanup drops for triggers tables sequences, ignore errors if missing
 -- --------------------------------------------------------------------
 BEGIN
    EXECUTE IMMEDIATE 'DROP TRIGGER trg_dim_facility_pk';
@@ -58,7 +52,7 @@ END;
 /
 
 
--- Part 1: SEQUENCES
+-- Sequences
 -- --------------------------------------------------------------------
 CREATE SEQUENCE dim_guest_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE dim_hotel_seq START WITH 1 INCREMENT BY 1 NOCACHE;
@@ -67,7 +61,7 @@ CREATE SEQUENCE dim_date_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 CREATE SEQUENCE dim_facility_seq START WITH 1 INCREMENT BY 1 NOCACHE;
 
 
--- Part 2: TABLES
+-- Tables
 -- --------------------------------------------------------------------
 CREATE TABLE DimGuest (
     GuestKey NUMBER(10) NOT NULL,
@@ -150,14 +144,14 @@ CREATE TABLE FactBookingRoom (
     DurationDays NUMBER(3) NOT NULL,
     RoomPricePerNight NUMBER(10,2) NOT NULL,
     CalculatedBookingAmount NUMBER(12,2) NOT NULL,
-    -- REVISED: Added degenerate dimensions to the composite primary key
-    CONSTRAINT pk_fact_booking PRIMARY KEY (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID),
+   -- note: degenerate dims added to composite primary key to preserve source identity
+   CONSTRAINT pk_fact_booking PRIMARY KEY (GuestKey, HotelKey, RoomKey, DateKey, BookingID, BookingDetailID),
     CONSTRAINT fk_fb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_fb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
     CONSTRAINT fk_fb_room FOREIGN KEY (RoomKey) REFERENCES DimRoom(RoomKey),
     CONSTRAINT fk_fb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey),
-    -- REVISED: Added FK constraint for the degenerate dimension to the source OLTP table
-    CONSTRAINT fk_fb_bookingdetail_oltp FOREIGN KEY (BookingID, BookingDetailID) REFERENCES BookingDetail(booking_id, room_id)
+   -- note: degenerate dims keep a FK back to booking detail in OLTP
+   CONSTRAINT fk_fb_bookingdetail_oltp FOREIGN KEY (BookingID, BookingDetailID) REFERENCES BookingDetail(booking_id, room_id)
 );
 
 CREATE TABLE FactFacilityBooking (
@@ -171,18 +165,18 @@ CREATE TABLE FactFacilityBooking (
     FacilityQuantity NUMBER(3) NOT NULL,
     FacilityUnitPrice NUMBER(10,2) NOT NULL,
     FacilityTotalAmount NUMBER(12,2) NOT NULL,
-    -- REVISED: Added degenerate dimension to the composite primary key
-    CONSTRAINT pk_fact_facility PRIMARY KEY (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID),
+   -- note: degenerate dim included in composite primary key to keep row uniqueness
+   CONSTRAINT pk_fact_facility PRIMARY KEY (GuestKey, FacilityKey, HotelKey, DateKey, FacilityBookingID),
     CONSTRAINT fk_ffb_guest FOREIGN KEY (GuestKey) REFERENCES DimGuest(GuestKey),
     CONSTRAINT fk_ffb_facility FOREIGN KEY (FacilityKey) REFERENCES DimFacility(FacilityKey),
     CONSTRAINT fk_ffb_hotel FOREIGN KEY (HotelKey) REFERENCES DimHotel(HotelKey),
     CONSTRAINT fk_ffb_date FOREIGN KEY (DateKey) REFERENCES DimDate(DateKey),
-    -- REVISED: Added FK constraint for the degenerate dimension to the source OLTP table
-    CONSTRAINT fk_ffb_service_oltp FOREIGN KEY (FacilityBookingID) REFERENCES Service(service_id)
+   -- note: degenerate dim references OLTP service id when available
+   CONSTRAINT fk_ffb_service_oltp FOREIGN KEY (FacilityBookingID) REFERENCES Service(service_id)
 );
 
 
--- Part 3: INDEXES
+-- Indexes
 -- --------------------------------------------------------------------
 CREATE INDEX idx_fb_guest_key ON FactBookingRoom(GuestKey);
 CREATE INDEX idx_fb_hotel_key ON FactBookingRoom(HotelKey);
@@ -195,7 +189,7 @@ CREATE INDEX idx_ffb_hotel_key ON FactFacilityBooking(HotelKey);
 CREATE INDEX idx_ffb_date_key ON FactFacilityBooking(DateKey);
 
 
--- Part 4: TRIGGERS
+-- Triggers
 -- --------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER trg_dim_guest_pk BEFORE INSERT ON DimGuest FOR EACH ROW BEGIN IF :NEW.GuestKey IS NULL THEN SELECT dim_guest_seq.NEXTVAL INTO :NEW.GuestKey FROM DUAL; END IF; END;
 /

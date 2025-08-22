@@ -1,11 +1,9 @@
--- ====================================================================
--- Data Warehouse Load Verification Script
--- Description: Run this script after P_RUN_INITIAL_LOAD to verify
---              the integrity and accuracy of the data warehouse.
+-- Data warehouse verification script
+-- run after initial load to sanity check counts and revenue
 -- ====================================================================
 
-SET SERVEROUTPUT ON;
-SET TERMOUT ON;
+SET SERVEROUTPUT ON
+SET TERMOUT ON
 
 DECLARE
   v_oltp_count NUMBER;
