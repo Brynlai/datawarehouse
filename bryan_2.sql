@@ -4,18 +4,18 @@
 SET PAGESIZE 70
 SET LINESIZE 150
 TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Quarterly Performance Deep Dive' SKIP 2
-BTITLE CENTER 'Report Generated on: ' _DATE
+BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
 -- Define the column formats and headings
-COLUMN "Year"           FORMAT 9999 HEADING 'Year'
-COLUMN "Qtr"            FORMAT A4   HEADING 'Qtr'
-COLUMN "Qtr Rank"       FORMAT A8   HEADING 'Rank'
-COLUMN "Room Revenue"   FORMAT A18  HEADING 'Room Revenue'
-COLUMN "Rev YoY %"      FORMAT A11  HEADING 'Rev YoY %'
-COLUMN "Bookings"       FORMAT A12  HEADING 'Bookings'
-COLUMN "Vol YoY %"      FORMAT A11  HEADING 'Vol YoY %'
-COLUMN "Avg Lead Time"  FORMAT A14  HEADING 'Avg Lead Time'
-COLUMN "Lead Time Chg"  FORMAT A17  HEADING 'Lead Time YoY Chg'
+COLUMN "Year"           FORMAT 9999
+COLUMN "Qtr"            FORMAT A4
+COLUMN "Qtr Rank"       FORMAT A8
+COLUMN "Room Revenue"   FORMAT $999,999,990
+COLUMN "Rev YoY %"      FORMAT A11
+COLUMN "Bookings"       FORMAT 9,999,999,990
+COLUMN "Vol YoY %"      FORMAT A11
+COLUMN "Avg Lead Time"  FORMAT 9,999.0
+COLUMN "Lead Time Chg"  FORMAT A17
 
 -- Main Query
 WITH
@@ -48,11 +48,11 @@ WITH
   )
 SELECT
   Year AS "Year", Quarter AS "Qtr", '#' || QuarterRank AS "Qtr Rank",
-  TO_CHAR(TotalRevenue, 'FM$999,999,990') AS "Room Revenue",
+  TotalRevenue AS "Room Revenue",
   CASE WHEN RevenueYoY IS NULL THEN 'N/A' ELSE TO_CHAR(RevenueYoY, 'FM990.0') || '%' END AS "Rev YoY %",
-  TO_CHAR(BookingVolume, 'FM999,999,990') AS "Bookings",
+  BookingVolume AS "Bookings",
   CASE WHEN VolumeYoY IS NULL THEN 'N/A' ELSE TO_CHAR(VolumeYoY, 'FM990.0') || '%' END AS "Vol YoY %",
-  TO_CHAR(AvgLeadTime, 'FM999,990.0') AS "Avg Lead Time",
+  AvgLeadTime AS "Avg Lead Time",
   CASE
     WHEN LeadTimeYoY_Change IS NULL THEN 'N/A'
     ELSE TO_CHAR(LeadTimeYoY_Change, 'FMS999,990.0') || ' Days'

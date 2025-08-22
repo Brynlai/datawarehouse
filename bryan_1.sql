@@ -4,15 +4,15 @@
 SET PAGESIZE 25
 SET LINESIZE 140
 TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Annual Revenue Performance and Growth' SKIP 2
-BTITLE CENTER 'Report Generated on: ' _DATE
+BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
 -- Define the column formats and headings
-COLUMN "Revenue Year"           FORMAT 9999 HEADING 'Year'
-COLUMN "Total Room Revenue"     FORMAT A22  HEADING 'Total Room Revenue'
-COLUMN "Total Facility Revenue" FORMAT A24  HEADING 'Total Facility Revenue'
-COLUMN "Grand Total Revenue"    FORMAT A23  HEADING 'Grand Total Revenue'
-COLUMN "Previous Year Revenue"  FORMAT A23  HEADING 'Previous Year Revenue'
-COLUMN "YoY Growth %"           FORMAT A14  HEADING 'YoY Growth %'
+COLUMN "Year"                  FORMAT 9999
+COLUMN "Total Room Revenue"    FORMAT $999,999,990
+COLUMN "Total Facility Revenue"FORMAT $999,999,990
+COLUMN "Grand Total Revenue"   FORMAT $999,999,990
+COLUMN "Previous Year Revenue" FORMAT $999,999,990
+COLUMN "YoY Growth %"          FORMAT A12
 
 -- Main Query
 WITH
@@ -35,11 +35,11 @@ WITH
     FROM AnnualRoomRevenue r FULL OUTER JOIN AnnualFacilityRevenue f ON r.Year = f.Year
   )
 SELECT
-  RevenueYear AS "Revenue Year",
-  TO_CHAR(TotalRoomRevenue, 'FM$999,999,999,990') AS "Total Room Revenue",
-  TO_CHAR(TotalFacilityRevenue, 'FM$999,999,999,990') AS "Total Facility Revenue",
-  TO_CHAR(TotalRevenue, 'FM$999,999,999,990') AS "Grand Total Revenue",
-  TO_CHAR(LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear), 'FM$999,999,999,990') AS "Previous Year Revenue",
+  RevenueYear AS "Year",
+  TotalRoomRevenue AS "Total Room Revenue",
+  TotalFacilityRevenue AS "Total Facility Revenue",
+  TotalRevenue AS "Grand Total Revenue",
+  LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) AS "Previous Year Revenue",
   CASE
     WHEN LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) = 0 THEN 'N/A'
     ELSE TO_CHAR(((TotalRevenue - LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) / LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) * 100, 'FM990.00') || '%'
