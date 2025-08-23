@@ -18,9 +18,9 @@ DIRECTORIES_TO_SKIP = {'.venv','dataset','data','.git', '.vscode', '.idea', 'tar
 
 # Optional: List of specific file names (case-sensitive) to completely skip
 # regardless of which directory they are in.
-FILES_TO_SKIP = {'code_scraper.py','bryan_1.sql','bryan_2.sql','bryan_3.sql','bryan.ipynb','3_insert_data.sql','scraper.py','consolidated_code.md','test_api.ipynb','test_pdf copy.ipynb','__init__.py', 'setup.py', '.env', '.env.example', 'README.md'}
+FILES_TO_SKIP = {'code_scraper.py','bryan.ipynb','3_insert_data.sql','scraper.py','consolidated_code.md','test_api.ipynb','test_pdf copy.ipynb','__init__.py', 'setup.py', '.env', '.env.example', 'README.md'}
 # --- End Configuration ---
-
+# 'bryan_1.sql','bryan_2.sql','bryan_3.sql',
 
 def consolidate_to_markdown(root_dir, output_filepath, dirs_to_skip, files_to_skip):
     """

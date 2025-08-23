@@ -3,23 +3,24 @@ from faker import Faker
 import random
 from datetime import datetime, timedelta, date
 
-# --- Configuration (REVISED) ---
+# --- Configuration (REVISED & REDUCED) ---
 NUM_HOTELS = 20
-NUM_GUESTS = 10000
+NUM_GUESTS = 10000 # This is fine, DimGuest is not that large.
 NUM_JOBS = 15
 NUM_ROOMS_PER_HOTEL = 50
 NUM_SERVICES_PER_HOTEL = 10
 NUM_DEPTS_PER_HOTEL = 5
 NUM_EMPLOYEES_PER_HOTEL = 30
 
-# Increased record counts
-NUM_BOOKINGS = 100000
-NUM_BOOKING_DETAILS = 120000
-NUM_GUEST_SERVICES = 100000
+# REDUCED: Transactional counts reduced to prevent tablespace errors.
+NUM_BOOKINGS = 70000
+NUM_BOOKING_DETAILS = 80000
+NUM_GUEST_SERVICES = 60000
 
-# Expanded to 15-year range
+# Date range remains the same
 DWH_START_DATE = date(2010, 1, 1)
-DWH_END_DATE = date(2024, 12, 31)
+DWH_END_DATE = date(2025, 8, 31)
+
 
 OUTPUT_FILE = "3_insert_data.sql"
 
@@ -112,19 +113,12 @@ def generate_rooms(f):
             room_id_counter += 1
     f.write("\n")
 
-# REVISED: Added service_type
 def generate_services(f):
     f.write("-- (6) Services\n")
     service_definitions = {
-        'Airport Shuttle': 'Transport',
-        'Room Service': 'Dining',
-        'Laundry Service': 'Convenience',
-        'Spa Treatment': 'Wellness',
-        'Gym Access': 'Recreation',
-        'Valet Parking': 'Transport',
-        'Conference Room Rental': 'Business',
-        'Bike Rental': 'Recreation',
-        'City Tour Package': 'Recreation',
+        'Airport Shuttle': 'Transport', 'Room Service': 'Dining', 'Laundry Service': 'Convenience',
+        'Spa Treatment': 'Wellness', 'Gym Access': 'Recreation', 'Valet Parking': 'Transport',
+        'Conference Room Rental': 'Business', 'Bike Rental': 'Recreation', 'City Tour Package': 'Recreation',
         'Pet Care': 'Convenience'
     }
     service_id_counter = 1
@@ -132,7 +126,7 @@ def generate_services(f):
         for name, s_type in service_definitions.items():
             service_ids.append(service_id_counter)
             price = round(random.uniform(15.0, 200.0), 2)
-            service_prices[service_id_counter] = price  # Store price for later use
+            service_prices[service_id_counter] = price
             desc = escape_sql_string(f"Provides convenient {name} for our valued guests.")
             sql = f"INSERT INTO Service (service_id, description, service_name, service_price, service_type, hotel_id) VALUES ({service_id_counter}, '{desc}', '{name}', {price}, '{s_type}', {hotel_id});\n"
             f.write(sql)
@@ -185,7 +179,6 @@ def generate_booking_details(f):
         f.write(sql)
     f.write("\n")
 
-# REVISED: Added quantity, total_amount and changed PK logic
 def generate_guest_services(f):
     f.write("-- (10) GuestServices\n")
     used_guest_service_date_triplets = set()

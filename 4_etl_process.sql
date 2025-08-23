@@ -1,4 +1,4 @@
--- ETL processes for data warehouse
+-- ETL processes for data warehouse (CORRECTED)
 -- Oracle 11g
 -- initial and subsequent load procedures
 -- =================================================================================
@@ -8,10 +8,8 @@ SET SERVEROUTPUT ON;
 
 -- Part 1: initial load
 -- =================================================================================
-
 -- Procedure: P_LOAD_DIM_DATE
--- populate DimDate between two dates
--- ---------------------------------------------------------------------------------
+-- populate DimDate between two dates with enriched festival events
 CREATE OR REPLACE PROCEDURE P_LOAD_DIM_DATE (
     p_start_date IN DATE,
     p_end_date   IN DATE
@@ -30,18 +28,42 @@ BEGIN
             TO_NUMBER(TO_CHAR(v_current_date, 'DD')), TO_NUMBER(TO_CHAR(v_current_date, 'DDD')),
             TO_NUMBER(TO_CHAR(v_current_date, 'D')), TO_CHAR(v_current_date, 'Day'),
             CASE WHEN TO_CHAR(v_current_date, 'D') IN ('1', '7') THEN 'Y' ELSE 'N' END,
-            CASE WHEN TO_CHAR(v_current_date, 'MMDD') IN ('0101', '1225') THEN 'Y' ELSE 'N' END,
+            -- IsHoliday flag updated for all new events
+            CASE WHEN TO_CHAR(v_current_date, 'MMDD') IN (
+                '0101', '0214', '0317', '0401', '0501', '0505', '0701', '0704', '0714', '1031',
+                '1101', '1111', '1224', '1225', '1226', '1231'
+            ) THEN 'Y' ELSE 'N' END,
             TO_NUMBER(TO_CHAR(v_current_date, 'WW')), LAST_DAY(v_current_date),
+            -- FestivalEvent list expanded to ~20 events
             CASE
                 WHEN TO_CHAR(v_current_date, 'MMDD') = '0101' THEN 'New Year''s Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0115' THEN 'Martin Luther King Jr. Day (US)'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0214' THEN 'Valentine''s Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0308' THEN 'International Women''s Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0317' THEN 'St. Patrick''s Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0401' THEN 'April Fool''s Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0422' THEN 'Earth Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0501' THEN 'May Day / Labour Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0505' THEN 'Cinco de Mayo'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0619' THEN 'Juneteenth (US)'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0701' THEN 'Canada Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0704' THEN 'Independence Day (US)'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '0714' THEN 'Bastille Day (France)'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1003' THEN 'German Unity Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1031' THEN 'Halloween'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1101' THEN 'All Saints'' Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1111' THEN 'Veterans / Armistice Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1224' THEN 'Christmas Eve'
                 WHEN TO_CHAR(v_current_date, 'MMDD') = '1225' THEN 'Christmas Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1226' THEN 'Boxing Day'
+                WHEN TO_CHAR(v_current_date, 'MMDD') = '1231' THEN 'New Year''s Eve'
                 ELSE NULL
             END
         );
         v_current_date := v_current_date + 1;
     END LOOP;
     COMMIT;
-    DBMS_OUTPUT.PUT_LINE('DimDate loaded successfully.');
+    DBMS_OUTPUT.PUT_LINE('DimDate loaded successfully!');
 EXCEPTION
     WHEN OTHERS THEN
         DBMS_OUTPUT.PUT_LINE('Error loading DimDate: ' || SQLERRM);
@@ -150,7 +172,7 @@ EXCEPTION
 END P_INITIAL_LOAD_FACTS;
 /
 
--- Master Procedure: P_RUN_INITIAL_LOAD
+-- Master Procedure: P_RUN_INITIAL_LOAD (CORRECTED)
 -- runs the full initial load and toggles constraints for faster load
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_INITIAL_LOAD AS
@@ -165,13 +187,15 @@ BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_facility';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_date';
-    -- *** NEW: Disable keys pointing to OLTP ***
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_bookingdetail_oltp';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_service_oltp';
+
+    -- *** CORRECTED: Removed two lines that disable non-existent constraints ***
     DBMS_OUTPUT.PUT_LINE('Fact table constraints disabled.');
 
     EXECUTE IMMEDIATE 'TRUNCATE TABLE FactBookingRoom';
     EXECUTE IMMEDIATE 'TRUNCATE TABLE FactFacilityBooking';
+    -- Must truncate dimensions before facts due to FKs
     EXECUTE IMMEDIATE 'TRUNCATE TABLE DimFacility';
     EXECUTE IMMEDIATE 'TRUNCATE TABLE DimRoom';
     EXECUTE IMMEDIATE 'TRUNCATE TABLE DimHotel';
@@ -179,6 +203,7 @@ BEGIN
     EXECUTE IMMEDIATE 'TRUNCATE TABLE DimDate';
     DBMS_OUTPUT.PUT_LINE('All DWH tables truncated.');
 
+    -- End date updated to include 2025
     P_LOAD_DIM_DATE(TO_DATE('2010-01-01', 'YYYY-MM-DD'), TO_DATE('2025-12-31', 'YYYY-MM-DD'));
     P_INITIAL_LOAD_DIMENSIONS;
     P_INITIAL_LOAD_FACTS;
@@ -192,7 +217,6 @@ BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_facility';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_hotel';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_date';
-    -- *** NEW: Enable keys pointing to OLTP ***
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom ENABLE VALIDATE CONSTRAINT fk_fb_bookingdetail_oltp';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking ENABLE VALIDATE CONSTRAINT fk_ffb_service_oltp';
     DBMS_OUTPUT.PUT_LINE('Fact table constraints re-enabled.');
@@ -347,3 +371,8 @@ EXCEPTION
         DBMS_OUTPUT.PUT_LINE('FATAL ERROR during subsequent load: ' || SQLERRM);
 END P_RUN_SUBSEQUENT_LOAD;
 /
+
+-- BEGIN
+--   P_RUN_INITIAL_LOAD;
+-- END;
+-- /

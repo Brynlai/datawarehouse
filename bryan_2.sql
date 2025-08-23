@@ -1,7 +1,7 @@
 -- Report 2: Quarterly Performance Deep Dive
 
 -- Setup the page and title for the report
-SET PAGESIZE 70
+SET PAGESIZE 75
 SET LINESIZE 150
 TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Quarterly Performance Deep Dive' SKIP 2
 BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
