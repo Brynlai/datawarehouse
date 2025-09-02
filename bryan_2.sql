@@ -17,7 +17,7 @@ COLUMN "Vol YoY %"      FORMAT A11
 COLUMN "Avg Lead Time"  FORMAT 9,999.0
 COLUMN "Lead Time Chg"  FORMAT A17
 
--- Main Query
+-- Main Query (Same as provided, no changes needed)
 WITH
   QuarterlyMetrics AS (
     SELECT

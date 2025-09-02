@@ -1,7 +1,6 @@
--- Report 3: Ancillary Performance with Global Peer Ranking
+-- Report 3: Extra Guest Spending with Global Peer Ranking
 
 -- Setup for a clean, professional report.
--- *** CORRECTED: Reduced PAGESIZE to remove the large gap before the footer. ***
 SET PAGESIZE 30
 SET LINESIZE 160
 SET VERIFY OFF
@@ -16,14 +15,14 @@ JOIN DimDate dd ON ffb.DateKey = dd.DateKey;
 SET TERMOUT ON
 
 -- Set the report titles, using the variable we just created.
-TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Hotel Ancillary Performance by Global Peer Group' SKIP 1 CENTER '(Analysis for the Year &V_LATEST_YEAR)' SKIP 2
+TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Extra Guest Spending by Global Peer Group' SKIP 1 CENTER '(Analysis for the Year &V_LATEST_YEAR)' SKIP 2
 BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
 -- Define the column formats and headings for the report body.
 COLUMN "Global Peer Rank"   FORMAT A20
 COLUMN City                 FORMAT A25
 COLUMN Country              FORMAT A40
-COLUMN "Ancillary/Night"    FORMAT $99,990.00
+COLUMN "Spending/Night"     FORMAT $99,990.00
 COLUMN "Dining"             FORMAT $9,999,990
 COLUMN "Business"           FORMAT $9,999,990
 COLUMN "Recreation"         FORMAT $9,999,990
@@ -62,7 +61,7 @@ WITH
       CASE
         WHEN NVL(hrm.TotalRoomNights, 0) = 0 THEN 0
         ELSE (NVL(hfb.Dining, 0) + NVL(hfb.Business, 0) + NVL(hfb.Recreation, 0) + NVL(hfb.Wellness, 0)) / hrm.TotalRoomNights
-      END AS AncillaryPerNight
+      END AS ExtraSpendingPerNight
     FROM HotelRoomMetrics hrm
     JOIN DimHotel dh ON hrm.HotelKey = dh.HotelKey
     LEFT JOIN HotelFacilityBreakdown hfb ON hrm.HotelKey = hfb.HotelKey
@@ -70,17 +69,17 @@ WITH
   )
 SELECT
   TO_CHAR(hp.Rating, 'FM9.0') || ' Star: ' ||
-  (RANK() OVER (PARTITION BY hp.Rating ORDER BY hp.AncillaryPerNight DESC)) || ' of ' ||
+  (RANK() OVER (PARTITION BY hp.Rating ORDER BY hp.ExtraSpendingPerNight DESC)) || ' of ' ||
   (COUNT(*) OVER (PARTITION BY hp.Rating)) AS "Global Peer Rank",
   hp.City,
   hp.Country,
-  hp.AncillaryPerNight AS "Ancillary/Night",
+  hp.ExtraSpendingPerNight AS "Spending/Night",
   hp.DiningRevenue AS "Dining",
   hp.BusinessRevenue AS "Business",
   hp.RecreationRevenue AS "Recreation",
   hp.WellnessRevenue AS "Wellness"
 FROM HotelPerformance hp
-ORDER BY hp.Rating DESC, hp.AncillaryPerNight DESC;
+ORDER BY hp.Rating DESC, hp.ExtraSpendingPerNight DESC;
 
 -- Clean up the report settings to return SQL*Plus to its default state.
 CLEAR COLUMNS
