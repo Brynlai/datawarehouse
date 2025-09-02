@@ -1,87 +1,75 @@
--- Report 3: Extra Guest Spending with Global Peer Ranking
+-- Report 3: Hotel Upselling Effectiveness (CORRECTED with a reliable year variable)
 
--- Setup for a clean, professional report.
+-- *** CORRECTION: Use DEFINE to explicitly set the year for the analysis. ***
+-- This is a more reliable method in SQL*Plus scripts and avoids the prompt.
+-- To analyze a different year, simply change the value below.
+DEFINE LATEST_YEAR = 2025
+
 SET PAGESIZE 30
-SET LINESIZE 160
+SET LINESIZE 180
 SET VERIFY OFF
 SET FEEDBACK OFF
 
--- Dynamically determine the latest year for the report title.
-SET TERMOUT OFF
-COLUMN latest_year FORMAT 9999 NEW_VALUE V_LATEST_YEAR NOPRINT;
-SELECT MAX(dd.Year) AS latest_year
-FROM FactFacilityBooking ffb
-JOIN DimDate dd ON ffb.DateKey = dd.DateKey;
-SET TERMOUT ON
-
--- Set the report titles, using the variable we just created.
-TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Extra Guest Spending by Global Peer Group' SKIP 1 CENTER '(Analysis for the Year &V_LATEST_YEAR)' SKIP 2
+-- Set the report titles, using the variable we just defined.
+TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Hotel Upselling Effectiveness by Peer Group' SKIP 1 CENTER '(Analysis for the Year &LATEST_YEAR)' SKIP 2
 BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
 -- Define the column formats and headings for the report body.
-COLUMN "Global Peer Rank"   FORMAT A20
-COLUMN City                 FORMAT A25
-COLUMN Country              FORMAT A40
-COLUMN "Spending/Night"     FORMAT $99,990.00
-COLUMN "Dining"             FORMAT $9,999,990
-COLUMN "Business"           FORMAT $9,999,990
-COLUMN "Recreation"         FORMAT $9,999,990
-COLUMN "Wellness"           FORMAT $9,999,990
+COLUMN "Peer Rank"            FORMAT A20
+COLUMN City                   FORMAT A25
+COLUMN Country                FORMAT A40
+COLUMN "Upselling Ratio"      FORMAT A18 HEADING 'Upselling Ratio'
+COLUMN "Avg Room Rate"        FORMAT $99,990.00
+COLUMN "Extra Spending/Night" FORMAT $99,990.00
 
 -- Main Query
 WITH
   HotelRoomMetrics AS (
-    SELECT fbr.HotelKey, SUM(fbr.DurationDays) AS TotalRoomNights
+    SELECT
+      fbr.HotelKey,
+      SUM(fbr.DurationDays) AS TotalRoomNights,
+      SUM(fbr.CalculatedBookingAmount) / SUM(fbr.DurationDays) AS AvgRoomRate
     FROM FactBookingRoom fbr
     JOIN DimDate dd ON fbr.DateKey = dd.DateKey
-    WHERE dd.Year = &V_LATEST_YEAR
+    -- Use the defined variable
+    WHERE dd.Year = &LATEST_YEAR AND fbr.DurationDays > 0
     GROUP BY fbr.HotelKey
   ),
-  HotelFacilityBreakdown AS (
-    SELECT * FROM (
-      SELECT
-        ffb.HotelKey, df.FacilityType, ffb.FacilityTotalAmount
-      FROM FactFacilityBooking ffb
-      JOIN DimDate dd ON ffb.DateKey = dd.DateKey
-      JOIN DimFacility df ON ffb.FacilityKey = df.FacilityKey
-      WHERE dd.Year = &V_LATEST_YEAR
-    )
-    PIVOT (
-      SUM(FacilityTotalAmount)
-      FOR FacilityType IN ('Dining' AS Dining, 'Business' AS Business, 'Recreation' AS Recreation, 'Wellness' AS Wellness)
-    )
+  HotelFacilityMetrics AS (
+    SELECT ffb.HotelKey, SUM(ffb.FacilityTotalAmount) AS TotalFacilityRevenue
+    FROM FactFacilityBooking ffb
+    JOIN DimDate dd ON ffb.DateKey = dd.DateKey
+    -- Use the defined variable
+    WHERE dd.Year = &LATEST_YEAR
+    GROUP BY ffb.HotelKey
   ),
   HotelPerformance AS (
     SELECT
-      hrm.HotelKey, dh.City, dh.Country, dh.Rating,
-      NVL(hfb.Dining, 0) AS DiningRevenue,
-      NVL(hfb.Business, 0) AS BusinessRevenue,
-      NVL(hfb.Recreation, 0) AS RecreationRevenue,
-      NVL(hfb.Wellness, 0) AS WellnessRevenue,
+      hrm.HotelKey, dh.City, dh.Country, dh.Rating, hrm.AvgRoomRate,
       CASE
         WHEN NVL(hrm.TotalRoomNights, 0) = 0 THEN 0
-        ELSE (NVL(hfb.Dining, 0) + NVL(hfb.Business, 0) + NVL(hfb.Recreation, 0) + NVL(hfb.Wellness, 0)) / hrm.TotalRoomNights
+        ELSE NVL(hfm.TotalFacilityRevenue, 0) / hrm.TotalRoomNights
       END AS ExtraSpendingPerNight
     FROM HotelRoomMetrics hrm
     JOIN DimHotel dh ON hrm.HotelKey = dh.HotelKey
-    LEFT JOIN HotelFacilityBreakdown hfb ON hrm.HotelKey = hfb.HotelKey
+    LEFT JOIN HotelFacilityMetrics hfm ON hrm.HotelKey = hfm.HotelKey
     WHERE hrm.TotalRoomNights > 0
   )
 SELECT
   TO_CHAR(hp.Rating, 'FM9.0') || ' Star: ' ||
-  (RANK() OVER (PARTITION BY hp.Rating ORDER BY hp.ExtraSpendingPerNight DESC)) || ' of ' ||
-  (COUNT(*) OVER (PARTITION BY hp.Rating)) AS "Global Peer Rank",
+  RANK() OVER (PARTITION BY hp.Rating ORDER BY (hp.ExtraSpendingPerNight / hp.AvgRoomRate) DESC) || ' of ' ||
+  COUNT(*) OVER (PARTITION BY hp.Rating) AS "Peer Rank",
   hp.City,
   hp.Country,
-  hp.ExtraSpendingPerNight AS "Spending/Night",
-  hp.DiningRevenue AS "Dining",
-  hp.BusinessRevenue AS "Business",
-  hp.RecreationRevenue AS "Recreation",
-  hp.WellnessRevenue AS "Wellness"
+  TO_CHAR((hp.ExtraSpendingPerNight / hp.AvgRoomRate) * 100, 'FM990.0') || '%' AS "Upselling Ratio",
+  hp.AvgRoomRate AS "Avg Room Rate",
+  hp.ExtraSpendingPerNight AS "Extra Spending/Night"
 FROM HotelPerformance hp
-ORDER BY hp.Rating DESC, hp.ExtraSpendingPerNight DESC;
+WHERE hp.AvgRoomRate > 0
+ORDER BY hp.Rating DESC, (hp.ExtraSpendingPerNight / hp.AvgRoomRate) DESC;
 
 -- Clean up the report settings to return SQL*Plus to its default state.
 CLEAR COLUMNS
 TTITLE OFF
 BTITLE OFF
+UNDEFINE LATEST_YEAR
