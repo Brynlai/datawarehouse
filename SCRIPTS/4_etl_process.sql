@@ -1,4 +1,4 @@
--- ETL processes for data warehouse (CORRECTED)
+-- ETL processes for data warehouse
 -- Oracle 11g
 -- initial and subsequent load procedures
 -- =================================================================================
@@ -172,7 +172,7 @@ EXCEPTION
 END P_INITIAL_LOAD_FACTS;
 /
 
--- Master Procedure: P_RUN_INITIAL_LOAD (CORRECTED)
+-- Master Procedure: P_RUN_INITIAL_LOAD
 -- runs the full initial load and toggles constraints for faster load
 -- ---------------------------------------------------------------------------------
 CREATE OR REPLACE PROCEDURE P_RUN_INITIAL_LOAD AS
@@ -190,7 +190,6 @@ BEGIN
     EXECUTE IMMEDIATE 'ALTER TABLE FactBookingRoom DISABLE CONSTRAINT fk_fb_bookingdetail_oltp';
     EXECUTE IMMEDIATE 'ALTER TABLE FactFacilityBooking DISABLE CONSTRAINT fk_ffb_service_oltp';
 
-    -- *** CORRECTED: Removed two lines that disable non-existent constraints ***
     DBMS_OUTPUT.PUT_LINE('Fact table constraints disabled.');
 
     EXECUTE IMMEDIATE 'TRUNCATE TABLE FactBookingRoom';
