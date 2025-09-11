@@ -1,8 +1,5 @@
--- Report 3: Hotel Upselling Effectiveness (CORRECTED with a reliable year variable)
+-- Report 3: Hotel Upselling Effectiveness
 
--- *** CORRECTION: Use DEFINE to explicitly set the year for the analysis. ***
--- This is a more reliable method in SQL*Plus scripts and avoids the prompt.
--- To analyze a different year, simply change the value below.
 DEFINE LATEST_YEAR = 2025
 
 SET PAGESIZE 30
@@ -68,7 +65,6 @@ FROM HotelPerformance hp
 WHERE hp.AvgRoomRate > 0
 ORDER BY hp.Rating DESC, (hp.ExtraSpendingPerNight / hp.AvgRoomRate) DESC;
 
--- Clean up the report settings to return SQL*Plus to its default state.
 CLEAR COLUMNS
 TTITLE OFF
 BTITLE OFF
