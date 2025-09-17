@@ -1,12 +1,9 @@
--- Report 1: Multi-Year Revenue Performance and Growth
-
--- Setup the page and title for the report
 SET PAGESIZE 25
 SET LINESIZE 140
-TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Annual Revenue Performance and Growth' SKIP 2
-BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
--- Define the column formats and headings
+TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Annual Revenue Performance and Growth' SKIP 1 -
+LEFT 'Page ' FORMAT 999 SQL.PNO COL 73 'Report Generated on: ' _DATE SKIP 2
+
 COLUMN "Year"                  FORMAT 9999
 COLUMN "Total Room Revenue"    FORMAT $999,999,990
 COLUMN "Total Facility Revenue"FORMAT $999,999,990
@@ -14,7 +11,6 @@ COLUMN "Grand Total Revenue"   FORMAT $999,999,990
 COLUMN "Previous Year Revenue" FORMAT $999,999,990
 COLUMN "YoY Growth %"          FORMAT A12
 
--- Main Query
 WITH
   AnnualRoomRevenue AS (
     SELECT dd.Year, SUM(fbr.CalculatedBookingAmount) AS RoomRevenue
@@ -40,14 +36,15 @@ SELECT
   TotalFacilityRevenue AS "Total Facility Revenue",
   TotalRevenue AS "Grand Total Revenue",
   LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) AS "Previous Year Revenue",
-  CASE
-    WHEN LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) = 0 THEN 'N/A'
-    ELSE TO_CHAR(((TotalRevenue - LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) / LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) * 100, 'FM990.00') || '%'
-  END AS "YoY Growth %"
+  LPAD(
+    CASE
+      WHEN LAG(TotalRevenue, 1, 0) OVER(ORDER BY RevenueYear) = 0 THEN 'N/A'
+      ELSE TO_CHAR(((TotalRevenue - LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) / LAG(TotalRevenue, 1) OVER(ORDER BY RevenueYear)) * 100, 'FM990.00') || '%'
+    END,
+  12) AS "YoY Growth %"
 FROM TotalAnnualRevenue
 ORDER BY RevenueYear;
 
--- Clean up the report settings
 CLEAR COLUMNS
 TTITLE OFF
-BTITLE OFF
+

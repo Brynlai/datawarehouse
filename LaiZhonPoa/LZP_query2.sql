@@ -1,12 +1,10 @@
--- Report 2: Quarterly Performance Deep Dive
 
--- Setup the page and title for the report
 SET PAGESIZE 75
 SET LINESIZE 150
-TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Quarterly Performance Deep Dive' SKIP 2
-BTITLE CENTER 'Page ' FORMAT 999 SQL.PNO SKIP 1 CENTER 'Report Generated on: ' _DATE
 
--- Define the column formats and headings
+TTITLE CENTER 'Hotel Analytics Inc.' SKIP 1 CENTER 'Quarterly Performance Deep Dive' SKIP 1 -
+LEFT 'Page ' FORMAT 999 SQL.PNO COL 75 'Report Generated on: ' _DATE SKIP 2
+
 COLUMN "Year"           FORMAT 9999
 COLUMN "Qtr"            FORMAT A4
 COLUMN "Qtr Rank"       FORMAT A8
@@ -17,7 +15,6 @@ COLUMN "Vol YoY %"      FORMAT A11
 COLUMN "Avg Lead Time"  FORMAT 9,999.0
 COLUMN "Lead Time Chg"  FORMAT A17
 
--- Main Query
 WITH
   QuarterlyMetrics AS (
     SELECT
@@ -49,18 +46,19 @@ WITH
 SELECT
   Year AS "Year", Quarter AS "Qtr", '#' || QuarterRank AS "Qtr Rank",
   TotalRevenue AS "Room Revenue",
-  CASE WHEN RevenueYoY IS NULL THEN 'N/A' ELSE TO_CHAR(RevenueYoY, 'FM990.0') || '%' END AS "Rev YoY %",
+  LPAD(CASE WHEN RevenueYoY IS NULL THEN 'N/A' ELSE TO_CHAR(RevenueYoY, 'FM990.0') || '%' END, 11) AS "Rev YoY %",
   BookingVolume AS "Bookings",
-  CASE WHEN VolumeYoY IS NULL THEN 'N/A' ELSE TO_CHAR(VolumeYoY, 'FM990.0') || '%' END AS "Vol YoY %",
+  LPAD(CASE WHEN VolumeYoY IS NULL THEN 'N/A' ELSE TO_CHAR(VolumeYoY, 'FM990.0') || '%' END, 11) AS "Vol YoY %",
   AvgLeadTime AS "Avg Lead Time",
-  CASE
-    WHEN LeadTimeYoY_Change IS NULL THEN 'N/A'
-    ELSE TO_CHAR(LeadTimeYoY_Change, 'FMS999,990.0') || ' Days'
-  END AS "Lead Time Chg"
+  LPAD(
+    CASE
+      WHEN LeadTimeYoY_Change IS NULL THEN 'N/A'
+      ELSE TO_CHAR(LeadTimeYoY_Change, 'FMS999,990.0') || ' Days'
+    END,
+  17) AS "Lead Time Chg"
 FROM FinalMetrics
 ORDER BY Year, Quarter;
 
--- Clean up the report settings
 CLEAR COLUMNS
 TTITLE OFF
-BTITLE OFF
+
