@@ -43,9 +43,9 @@ WITH
   )
 SELECT
   hp.FestivalEvent AS "Holiday_Event",
-  TO_CHAR(hp.TotalBookingCount, 'FM9,999') AS "Total_Booking_Count",
-  TO_CHAR(hp.LongTermAvgSpend, 'FM99,990.00') AS "Long_Term_Avg_Spend",
-  TO_CHAR(((hp.LongTermAvgSpend / nha.AvgNonHolidaySpend) - 1) * 100, 'FMS990.0') || '%' AS "Spend_vs_Avg"
+  TO_CHAR(hp.TotalBookingCount, '9,999') AS "Total_Booking_Count",
+  TO_CHAR(hp.LongTermAvgSpend, '99,990.00') AS "Long_Term_Avg_Spend",
+  TO_CHAR(((hp.LongTermAvgSpend / nha.AvgNonHolidaySpend) - 1) * 100, 'S990.0') || '%' AS "Spend_vs_Avg"
 FROM HolidayPerformance hp
 CROSS JOIN NonHolidayAverage nha
 WHERE hp.TotalBookingCount > 50 
@@ -53,7 +53,6 @@ ORDER BY "Long_Term_Avg_Spend" DESC;
 
 CLEAR COLUMNS; 
 TTITLE OFF; 
-
 
 TTITLE CENTER 'Room Demand Analysis for Top-Tier Holidays' SKIP 1 -
        CENTER 'Analysis Period: 2010-2025' SKIP 1 -
@@ -93,9 +92,9 @@ WITH
 SELECT
   hrb.FestivalEvent AS "Holiday_Event",
   hrb.RoomType AS "Room_Type",
-  TO_CHAR(COUNT(hrb.BookingID), 'FM9,999') AS "Booking_Count",
-  TO_CHAR(SUM(hrb.CalculatedBookingAmount), 'FM99,999,990') AS "Room_Revenue_on_Holiday",
-  TO_CHAR(SUM(hrb.CalculatedBookingAmount) * 100 / SUM(SUM(hrb.CalculatedBookingAmount)) OVER (PARTITION BY hrb.FestivalEvent), 'FM990.0') || '%' AS "Share_of_Holiday_Revenue"
+  TO_CHAR(COUNT(hrb.BookingID), '9,999') AS "Booking_Count",
+  TO_CHAR(SUM(hrb.CalculatedBookingAmount), '99,999,990') AS "Room_Revenue_on_Holiday",
+  TO_CHAR(SUM(hrb.CalculatedBookingAmount) * 100 / SUM(SUM(hrb.CalculatedBookingAmount)) OVER (PARTITION BY hrb.FestivalEvent), '990.0') || '%' AS "Share_of_Holiday_Revenue"
 FROM HolidayRoomBookings hrb
 GROUP BY hrb.FestivalEvent, hrb.RoomType
 ORDER BY hrb.FestivalEvent,SUM(hrb.CalculatedBookingAmount) DESC;
