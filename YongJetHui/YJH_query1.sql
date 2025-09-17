@@ -6,7 +6,7 @@ SET FEEDBACK OFF
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,'
 
 TTITLE CENTER 'Segment Spend Composition (Room vs. Ancillary)' SKIP 1 -
-       CENTER 'Analysis Period: 2024 Onwards' SKIP 1 -
+       CENTER 'Analysis Period: 2020 - 2024' SKIP 1 -
        RIGHT 'Date: ' _DATE SKIP 1 -
        RIGHT 'Page: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -22,12 +22,12 @@ WITH
         fbr.GuestKey, fbr.BookingID, d.FullDate AS TransactionDate,
         fbr.CalculatedBookingAmount AS RoomRevenue, 0 AS FacilityRevenue,
         CASE WHEN d.DayName LIKE 'Saturday%' OR d.DayName LIKE 'Sunday%' THEN 1 ELSE 0 END AS IsWeekendStay
-    FROM FactBookingRoom fbr JOIN DimDate d ON fbr.DateKey = d.DateKey WHERE d.Year >= 2024
+    FROM FactBookingRoom fbr JOIN DimDate d ON fbr.DateKey = d.DateKey WHERE d.Year BETWEEN 2020 AND 2024
     UNION ALL
     SELECT 
         ffb.GuestKey, NULL AS BookingID, d.FullDate AS TransactionDate,
         0 AS RoomRevenue, ffb.FacilityTotalAmount AS FacilityRevenue, NULL AS IsWeekendStay
-    FROM FactFacilityBooking ffb JOIN DimDate d ON ffb.DateKey = d.DateKey WHERE d.Year >= 2024
+    FROM FactFacilityBooking ffb JOIN DimDate d ON ffb.DateKey = d.DateKey WHERE d.Year BETWEEN 2020 AND 2024
   ),
   GuestProfile AS (
     SELECT 
@@ -68,21 +68,23 @@ WITH
   )
 SELECT
     gs.StrategicSegment AS "Strategic_Segment",
-    TO_CHAR(AVG(gs.TotalSpend), 'FM99,990.00') AS "Avg_Total_Spend",
-    TO_CHAR(AVG(gs.TotalRoomSpend), 'FM99,990.00') AS "Avg_Room_Spend",
-    TO_CHAR(AVG(gs.TotalAncillarySpend), 'FM99,990.00') AS "Avg_Ancillary_Spend",
-    TO_CHAR(AVG(gs.TotalAncillarySpend) * 100 / AVG(gs.TotalSpend), 'FM990.0') || '%' AS "Ancillary_Share"
+    TO_CHAR(AVG(gs.TotalSpend), '99,990.00') AS "Avg_Total_Spend",
+    TO_CHAR(AVG(gs.TotalRoomSpend), '99,990.00') AS "Avg_Room_Spend",
+    TO_CHAR(AVG(gs.TotalAncillarySpend), '99,990.00') AS "Avg_Ancillary_Spend",
+    TO_CHAR(AVG(gs.TotalAncillarySpend) * 100 / NULLIF(AVG(gs.TotalSpend),0), '990.0') || '%' AS "Ancillary_Share"
 FROM GuestSegmentation gs
 GROUP BY gs.StrategicSegment
 ORDER BY AVG(gs.TotalSpend) DESC;
 
-
 TTITLE OFF
 CLEAR COLUMNS;
 
+-- =====================================================================================
+-- ANCILLARY PREFERENCE ANALYSIS
+-- =====================================================================================
 
 TTITLE CENTER 'Ancillary Service Preference of Guest Segments' SKIP 1 -
-       CENTER 'Analysis Period: 2024 Onwards' SKIP 1 -
+       CENTER 'Analysis Period: 2020 - 2024' SKIP 1 -
        RIGHT 'Date: ' _DATE SKIP 1 -
        RIGHT 'Page: ' FORMAT 999 SQL.PNO SKIP 2
 
@@ -90,7 +92,7 @@ COLUMN "Strategic_Segment"         FORMAT A28      HEADING 'High-Value Guest Seg
 COLUMN "Facility_Type"             FORMAT A20      HEADING 'Facility Type'
 COLUMN "Spend_per_Guest"           FORMAT A25      HEADING 'Avg. Spend per Guest|in Segment (RM)'
 COLUMN "Service_Spend_Share"       FORMAT A25      HEADING 'Share of Segment''s|Service Spend (%)'
-COLUMN "Preference_Rank"           FORMAT 9999     HEADING 'Preference|Rank'
+
 
 BREAK ON "Strategic_Segment" SKIP 1
 
@@ -100,12 +102,12 @@ WITH
         fbr.GuestKey, fbr.BookingID, d.FullDate AS TransactionDate,
         fbr.CalculatedBookingAmount AS RoomRevenue, 0 AS FacilityRevenue,
         CASE WHEN d.DayName LIKE 'Saturday%' OR d.DayName LIKE 'Sunday%' THEN 1 ELSE 0 END AS IsWeekendStay
-    FROM FactBookingRoom fbr JOIN DimDate d ON fbr.DateKey = d.DateKey WHERE d.Year >= 2024
+    FROM FactBookingRoom fbr JOIN DimDate d ON fbr.DateKey = d.DateKey WHERE d.Year BETWEEN 2020 AND 2024
     UNION ALL
     SELECT 
         ffb.GuestKey, NULL AS BookingID, d.FullDate AS TransactionDate,
         0 AS RoomRevenue, ffb.FacilityTotalAmount AS FacilityRevenue, NULL AS IsWeekendStay
-    FROM FactFacilityBooking ffb JOIN DimDate d ON ffb.DateKey = d.DateKey WHERE d.Year >= 2024
+    FROM FactFacilityBooking ffb JOIN DimDate d ON ffb.DateKey = d.DateKey WHERE d.Year BETWEEN 2020 AND 2024
   ),
   GuestProfile AS (
     SELECT 
@@ -149,15 +151,14 @@ WITH
     JOIN DimFacility df ON ffb.FacilityKey = df.FacilityKey
     JOIN GuestSegmentation gs ON ffb.GuestKey = gs.GuestKey
     JOIN DimDate dd ON ffb.DateKey = dd.DateKey
-    WHERE dd.Year >= 2024 AND dd.FullDate <= SYSDATE
+    WHERE dd.Year BETWEEN 2020 AND 2024 AND dd.FullDate <= SYSDATE
     GROUP BY gs.StrategicSegment, gs.GuestKey, df.FacilityType
   )
 SELECT
   sas.StrategicSegment AS "Strategic_Segment",
   sas.FacilityType AS "Facility_Type",
-  TO_CHAR(SUM(sas.SpendOnFacilityType) / COUNT(DISTINCT sas.GuestKey), 'FM99,990.00') AS "Spend_per_Guest",
-  TO_CHAR(SUM(sas.SpendOnFacilityType) * 100 / SUM(SUM(sas.SpendOnFacilityType)) OVER (PARTITION BY sas.StrategicSegment), 'FM990.0') || '%' AS "Service_Spend_Share",
-  DENSE_RANK() OVER (PARTITION BY sas.StrategicSegment ORDER BY SUM(sas.SpendOnFacilityType) DESC) AS "Preference_Rank"
+  TO_CHAR(SUM(sas.SpendOnFacilityType) / COUNT(DISTINCT sas.GuestKey), '99,990.00') AS "Spend_per_Guest",
+  TO_CHAR(SUM(sas.SpendOnFacilityType) * 100 / SUM(SUM(sas.SpendOnFacilityType)) OVER (PARTITION BY sas.StrategicSegment), '990.0') || '%' AS "Service_Spend_Share"
 FROM SegmentAncillarySpend sas
 GROUP BY sas.StrategicSegment, sas.FacilityType
 ORDER BY 
@@ -171,8 +172,7 @@ ORDER BY
     WHEN 'New Guests' THEN 7
     ELSE 99
   END,
-  "Preference_Rank";
-
+  SUM(sas.SpendOnFacilityType) DESC;
 
 CLEAR COLUMNS;
 CLEAR BREAKS;
