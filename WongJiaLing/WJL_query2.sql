@@ -5,18 +5,26 @@ SET VERIFY OFF
 SET FEEDBACK OFF
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
-TTITLE LEFT 'Date: ' _DATE RIGHT 'Page ' FORMAT FM99 SQL.PNO SKIP 2 -
-       CENTER 'Room Stay Value & Behavior Analysis (Weekend vs. Weekday)' SKIP 1 -
-       CENTER 'Analysis Period: 2023 - 2025 (YTD)' SKIP 2
+TTITLE CENTER 'Room Stay Value & Behavior Analysis (Weekend vs. Weekday)' SKIP 1 -
+       CENTER 'Analysis Period: 2022 - 2024' SKIP 2 -
+       LEFT 'Date: ' _DATE RIGHT 'Page ' FORMAT FM99 SQL.PNO SKIP 2
 
-COLUMN "Room Type"                 FORMAT A12      HEADING 'Room Type'
-COLUMN "Total_Booking_Count"       FORMAT A10      HEADING 'Total|Bookings'
-COLUMN "Booking_Pct"               FORMAT A15      HEADING 'Booking|Percentage (%)'
-COLUMN "Avg_Stay_Duration"         FORMAT A10      HEADING 'Avg Stay|Days'
-COLUMN "Avg_Weekend_Stay_Value"    FORMAT A15      HEADING 'Avg Weekend|Value (RM)'
-COLUMN "Avg_Weekday_Stay_Value"    FORMAT A15      HEADING 'Avg Weekday|Value (RM)'
-COLUMN "Value_Index"               FORMAT A9       HEADING 'Value|Index'
-COLUMN "Strategic_Insight"         FORMAT A36      HEADING 'Strategic Insight'
+COLUMN "Room Type"                 FORMAT A12        HEADING 'Room Type'
+COLUMN "Total_Booking_Count"       FORMAT 999,999    HEADING 'Total|Bookings'
+COLUMN "Booking_Pct"               FORMAT 99.0       HEADING 'Booking|Percentage (%)'
+COLUMN "Avg_Stay_Duration"         FORMAT 99         HEADING 'Avg Stay|Days'
+COLUMN "Avg_Weekend_Stay_Value"    FORMAT 99,999.00  HEADING 'Avg Weekend|Value (RM)'
+COLUMN "Avg_Weekday_Stay_Value"    FORMAT 99,999.00  HEADING 'Avg Weekday|Value (RM)'
+COLUMN "Value_Index"               FORMAT 0.9        HEADING 'Value|Index'
+COLUMN "Strategic_Insight"         FORMAT A32        HEADING 'Strategic Insight'
+
+COLUMN spacer1 FORMAT A2 HEADING ''
+COLUMN spacer2 FORMAT A2 HEADING ''
+COLUMN spacer3 FORMAT A2 HEADING ''
+COLUMN spacer4 FORMAT A2 HEADING ''
+COLUMN spacer5 FORMAT A2 HEADING ''
+COLUMN spacer6 FORMAT A2 HEADING ''
+COLUMN spacer7 FORMAT A2 HEADING ''
 
 WITH
   BookingStats AS (
@@ -29,7 +37,7 @@ WITH
     FROM FactBookingRoom fbr
     JOIN DimRoom dr ON fbr.RoomKey = dr.RoomKey AND dr.CurrentFlag = 'Y'
     JOIN DimDate dd ON fbr.DateKey = dd.DateKey
-    WHERE dd.Year IN (2023, 2024, 2025) AND dd.FullDate <= SYSDATE
+    WHERE dd.Year IN (2022, 2023, 2024)
   ),
   RoomTypeSummary AS (
     SELECT
@@ -50,12 +58,19 @@ WITH
   )
 SELECT
   rts.RoomType AS "Room Type",
-  TO_CHAR(rts.TotalBookingCount, 'FM99,999') AS "Total_Booking_Count",
-  TO_CHAR(rts.TotalBookingCount * 100 / ot.GrandTotalBookings, 'FM99.0') AS "Booking_Pct",
-  TO_CHAR(ROUND(rts.AvgStayDuration, 0), 'FM99') AS "Avg_Stay_Duration",
-  TO_CHAR(rts.AvgWeekendStayValue, 'FM9,999.00') AS "Avg_Weekend_Stay_Value",
-  TO_CHAR(rts.AvgWeekdayStayValue, 'FM9,999.00') AS "Avg_Weekday_Stay_Value",
-  TO_CHAR((rts.TotalBookingCount / ot.OverallAvgBookings) * ((NVL(rts.AvgWeekendStayValue, 0) + NVL(rts.AvgWeekdayStayValue, 0)) / 2 / ot.OverallAvgValue), 'FM0.9') AS "Value_Index",
+  '' AS spacer1,
+  rts.TotalBookingCount AS "Total_Booking_Count",
+  '' AS spacer2,
+  (rts.TotalBookingCount * 100 / ot.GrandTotalBookings) AS "Booking_Pct",
+  '' AS spacer3,
+  ROUND(rts.AvgStayDuration, 0) AS "Avg_Stay_Duration",
+  '' AS spacer4,
+  rts.AvgWeekendStayValue AS "Avg_Weekend_Stay_Value",
+  '' AS spacer5,
+  rts.AvgWeekdayStayValue AS "Avg_Weekday_Stay_Value",
+  '' AS spacer6,
+  (rts.TotalBookingCount / ot.OverallAvgBookings) * ((NVL(rts.AvgWeekendStayValue, 0) + NVL(rts.AvgWeekdayStayValue, 0)) / 2 / ot.OverallAvgValue) AS "Value_Index",
+  '' AS spacer7,
   CASE
     WHEN rts.TotalBookingCount > ot.OverallAvgBookings * 1.5 THEN 'Volume Driver: High popularity'
     ELSE 'Niche / Balanced Appeal'
