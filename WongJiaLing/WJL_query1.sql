@@ -8,16 +8,23 @@ SET NEWPAGE 1
 SET HEADING ON
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
-TTITLE LEFT 'Date: ' _DATE RIGHT 'Page ' FORMAT 99 SQL.PNO SKIP 2 -
-       CENTER 'Advance Booking Window Analysis' SKIP 1 -
-       CENTER 'Analysis Period: 2023 - 2025 (YTD)' SKIP 2
+TTITLE CENTER 'Advance Booking Window Analysis' SKIP 1 -
+       CENTER 'Analysis Period: 2022 - 2024' SKIP 2 -
+       LEFT 'Date: ' _DATE RIGHT 'Page ' FORMAT 99 SQL.PNO SKIP 2
 
-COLUMN "Booking Window Category"      FORMAT A28      HEADING 'Booking Window Category'
-COLUMN "Total Bookings"               FORMAT A15      HEADING 'Total Bookings' JUSTIFY RIGHT
-COLUMN "Booking Pct"                  FORMAT A18      HEADING 'Percentage|of Total' JUSTIFY RIGHT
-COLUMN "Total Duration (Days)"        FORMAT A18      HEADING 'Total Duration|(Days)' JUSTIFY RIGHT
-COLUMN "Total Revenue (RM)"           FORMAT A22      HEADING 'Total Revenue|(RM)' JUSTIFY RIGHT
-COLUMN "Average Daily Rate (RM)"      FORMAT A22      HEADING 'Average Daily Rate|(RM)' JUSTIFY RIGHT
+COLUMN "Booking Window Category"      FORMAT A28           HEADING 'Booking Window Category'
+COLUMN "Total Bookings"               FORMAT 999,999       HEADING 'Total Bookings'
+COLUMN "Booking Pct"                  FORMAT 990.0         HEADING 'Percentage of|Total (%)'
+COLUMN "Total Duration (Days)"        FORMAT 9,999,999     HEADING 'Total Duration|(Days)'
+COLUMN "Total Revenue (RM)"           FORMAT 99,999,990.00 HEADING 'Total Revenue|(RM)'
+COLUMN "Average Daily Rate (RM)"      FORMAT 99,990.00     HEADING 'Average Daily Rate|(RM)'
+
+COLUMN spacer1 FORMAT A2 HEADING ''
+COLUMN spacer2 FORMAT A2 HEADING ''
+COLUMN spacer3 FORMAT A2 HEADING ''
+COLUMN spacer4 FORMAT A2 HEADING ''
+COLUMN spacer5 FORMAT A2 HEADING ''
+
 
 WITH
   BookingLeadTime AS (
@@ -30,7 +37,7 @@ WITH
     JOIN DimDate dd ON fbr.DateKey = dd.DateKey
     JOIN Booking b ON fbr.BookingID = b.booking_id
     JOIN BookingDetail bd ON fbr.BookingID = bd.booking_id AND fbr.BookingDetailID = bd.room_id
-    WHERE dd.Year IN (2023, 2024, 2025) AND dd.FullDate <= SYSDATE
+    WHERE dd.Year IN (2022, 2023, 2024)
   ),
   AnalysisData AS (
     SELECT
@@ -57,11 +64,16 @@ WITH
   )
 SELECT
   ad.Category AS "Booking Window Category",
-  TO_CHAR(ad.NumBookings, 'FM999,999') AS "Total Bookings",
-  TO_CHAR((ad.NumBookings * 100 / tb.TotalBooks), 'FM990.0') AS "Booking Pct",
-  TO_CHAR(ad.TotalDuration, 'FM999,999') AS "Total Duration (Days)",
-  TO_CHAR(ad.TotalRevenue, 'FM99,999,990.00') AS "Total Revenue (RM)",
-  TO_CHAR(ad.TotalRevenue / NULLIF(ad.TotalDuration, 0), 'FM99,990.00') AS "Average Daily Rate (RM)"
+  '' AS spacer1,
+  ad.NumBookings AS "Total Bookings",
+  '' AS spacer2,
+  (ad.NumBookings * 100 / tb.TotalBooks) AS "Booking Pct",
+  '' AS spacer3,
+  ad.TotalDuration AS "Total Duration (Days)",
+  '' AS spacer4,
+  ad.TotalRevenue AS "Total Revenue (RM)",
+  '' AS spacer5,
+  ad.TotalRevenue / NULLIF(ad.TotalDuration, 0) AS "Average Daily Rate (RM)"
 FROM
   AnalysisData ad,
   TotalOverallBookings tb
