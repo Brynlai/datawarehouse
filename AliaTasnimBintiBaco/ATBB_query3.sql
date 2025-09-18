@@ -1,17 +1,17 @@
 -- REPORT 3: 3.2.3 Seasonal Top Contributor Analysis (Service-Level Drill-Down)
-
 SET DEFINE ON
-SET PAGESIZE 100
-SET LINESIZE 160
+SET PAGESIZE 35
+SET LINESIZE 130
 SET VERIFY OFF
 SET FEEDBACK OFF
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
-DEFINE v_start_year = 2023
+DEFINE v_start_year = 2022
 DEFINE v_end_year   = 2024
 
-TTITLE 'Seasonal Top Contributor Analysis (Service-Level Drill-Down)' SKIP 1 'Analysis Period: &v_start_year - &v_end_year' SKIP 2
-BTITLE 'Generated on: ' &_DATE '   Page: ' FORMAT 999 SQL.PNO
+TTITLE CENTER 'Seasonal Top Contributor Analysis (Service-Level Drill-Down)' SKIP 1 -
+CENTER 'Analysis Period: &v_start_year - &v_end_year' SKIP 2 -
+LEFT 'Report Generated on: ' _DATE COL 115 'Page: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN "Season"           FORMAT A25 HEADING 'Season'
 COLUMN "Service_Name"     FORMAT A30 HEADING 'Service Name'
@@ -57,9 +57,9 @@ WITH
 SELECT
   Season AS "Season",
   Service_Name AS "Service_Name",
-  TO_CHAR(TotalRevenue, 'FM999,999,990.00') AS "Seasonal_Revenue",
-  TO_CHAR(Pct_Contribution, 'FM990.0') || '%' AS "Pct_Contribution",
-  TO_CHAR(Cumulative_Pct, 'FM990.0') || '%' AS "Cumulative_Pct"
+  LPAD(TO_CHAR(TotalRevenue, 'FM999,999,990.00'), 22) AS "Seasonal_Revenue",
+  LPAD(TO_CHAR(Pct_Contribution, 'FM990.0') || '%', 15) AS "Pct_Contribution",
+  LPAD(TO_CHAR(Cumulative_Pct, 'FM990.0') || '%', 20) AS "Cumulative_Pct"
 FROM ContributionAnalysis
 ORDER BY
     CASE Season

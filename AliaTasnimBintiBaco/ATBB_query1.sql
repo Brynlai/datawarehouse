@@ -1,22 +1,22 @@
 -- REPORT 1 : 3.2.1 Stay Duration vs. Extra Service Spend Analysis
-
 SET DEFINE ON
-SET PAGESIZE 100
-SET LINESIZE 150
+SET PAGESIZE 35
+SET LINESIZE 130
 SET VERIFY OFF
 SET FEEDBACK OFF
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
 DEFINE v_start_year = 2020
-DEFINE v_end_year   = 2025
+DEFINE v_end_year   = 2024 
 
-TTITLE 'Stay Duration vs. Extra Service Spend Analysis' SKIP 1 'Analysis Period: &v_start_year - &v_end_year' SKIP 2
-BTITLE 'Generated on: ' &_DATE '   Page: ' FORMAT 999 SQL.PNO
+TTITLE CENTER 'Stay Duration vs. Extra Service Spend Analysis' SKIP 1 -
+CENTER 'Analysis Period: &v_start_year - &v_end_year' SKIP 2 -
+LEFT 'Report Generated on: ' _DATE COL 115 'Page: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN "Stay_Duration_Bucket"      FORMAT A35      HEADING 'Stay Duration Bucket'
 COLUMN "Guest_Count"               FORMAT 999,999  HEADING 'Guest Count'
-COLUMN "Service_Adoption_Rate"     FORMAT A20      HEADING 'Service Adoption|Rate (%)'
-COLUMN "Avg_Ancillary_Spend"       FORMAT A25      HEADING 'Avg. Ancillary Spend|per Service User (RM)'
+COLUMN "Service_Adoption_Rate"     FORMAT A30      HEADING 'Service Adoption Rate (%)'
+COLUMN "Avg_Ancillary_Spend"       FORMAT A45      HEADING 'Avg. Ancillary Spend per Service User (RM)'
 
 WITH
   GuestStayDuration AS (
@@ -45,8 +45,8 @@ WITH
 SELECT
   gad.Stay_Duration_Bucket AS "Stay_Duration_Bucket",
   COUNT(DISTINCT gad.GuestKey) AS "Guest_Count",
-  TO_CHAR((COUNT(gad.TotalServiceSpend) * 100.0) / COUNT(gad.GuestKey), 'FM990.0') || '%' AS "Service_Adoption_Rate",
-  TO_CHAR(NVL(AVG(gad.TotalServiceSpend), 0), 'FM99,999.00') AS "Avg_Ancillary_Spend"
+  LPAD(TO_CHAR((COUNT(gad.TotalServiceSpend) * 100.0) / COUNT(gad.GuestKey), 'FM990.0') || '%', 30) AS "Service_Adoption_Rate",
+  LPAD(TO_CHAR(NVL(AVG(gad.TotalServiceSpend), 0), 'FM99,999.00'), 45) AS "Avg_Ancillary_Spend"
 FROM GuestAnalysisData gad
 GROUP BY gad.Stay_Duration_Bucket
 ORDER BY

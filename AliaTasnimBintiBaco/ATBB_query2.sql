@@ -1,26 +1,26 @@
 -- REPORT 2: 3.2.2 Seasonal Revenue Analysis for Extra Services (2023-2024)
-
 SET DEFINE ON
-SET PAGESIZE 100
-SET LINESIZE 150
+SET PAGESIZE 35
+SET LINESIZE 130 
 SET VERIFY OFF
 SET FEEDBACK OFF
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
-DEFINE v_start_year = 2023
+DEFINE v_start_year = 2022
 DEFINE v_end_year   = 2024
 
-TTITLE 'Seasonal Revenue Analysis for Extra Services' SKIP 1 'Analysis Period: &v_start_year - &v_end_year' SKIP 2
-BTITLE 'Generated on: ' &_DATE '   Page: ' FORMAT 999 SQL.PNO
+TTITLE CENTER 'Seasonal Revenue Analysis for Extra Services' SKIP 1 -
+CENTER 'Analysis Period: &v_start_year - &v_end_year' SKIP 2 -
+LEFT 'Report Generated on: ' _DATE COL 115 'Page: ' FORMAT 999 SQL.PNO SKIP 2
 
 COLUMN "Season"         FORMAT A25 HEADING 'Season'
-COLUMN "Recreation"     FORMAT 999,999,990.00 HEADING 'Recreation'
-COLUMN "Transport"      FORMAT 999,999,990.00 HEADING 'Transport'
-COLUMN "Convenience"    FORMAT 999,999,990.00 HEADING 'Convenience'
-COLUMN "Wellness"       FORMAT 999,999,990.00 HEADING 'Wellness'
-COLUMN "Dining"         FORMAT 999,999,990.00 HEADING 'Dining'
-COLUMN "Business"       FORMAT 999,999,990.00 HEADING 'Business'
-COLUMN "Total_Revenue"  FORMAT 999,999,990.00 HEADING 'Total Revenue'
+COLUMN "Recreation"     FORMAT 999,999.00 HEADING 'Recreation'
+COLUMN "Transport"      FORMAT 999,999.00 HEADING 'Transport'
+COLUMN "Convenience"    FORMAT 999,999.00 HEADING 'Convenience'
+COLUMN "Wellness"       FORMAT 999,999.00 HEADING 'Wellness'
+COLUMN "Dining"         FORMAT 999,999.00 HEADING 'Dining'
+COLUMN "Business"       FORMAT 999,999.00 HEADING 'Business'
+COLUMN "Total_Revenue"  FORMAT 9,999,999.00 HEADING 'Total Revenue'
 
 WITH
   SeasonalData AS (
@@ -70,4 +70,3 @@ ORDER BY
 CLEAR COLUMNS
 TTITLE OFF
 BTITLE OFF
-
