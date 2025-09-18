@@ -38,19 +38,19 @@ WITH
   )
 SELECT
   yoy.Year AS "Analysis_Year",
-  TO_CHAR(yoy.HolidayRevenue, 'FM99,999,990') AS "Holiday_Revenue",
+  TO_CHAR(yoy.HolidayRevenue, '99,999,990') AS "Holiday_Revenue",
   CASE
     WHEN yoy.PreviousHolidayRevenue = 0 THEN 'N/A'
-    ELSE TO_CHAR(((yoy.HolidayRevenue / yoy.PreviousHolidayRevenue) - 1) * 100, 'FMS990.0') || '%'
+    ELSE TO_CHAR(((yoy.HolidayRevenue / yoy.PreviousHolidayRevenue) - 1) * 100, 'S990.0') || '%'
   END AS "Holiday_YoY_Growth",
   CASE
     WHEN yoy.PreviousNonHolidayRevenue = 0 THEN 'N/A'
-    ELSE TO_CHAR(((yoy.NonHolidayRevenue / yoy.PreviousNonHolidayRevenue) - 1) * 100, 'FMS990.0') || '%'
+    ELSE TO_CHAR(((yoy.NonHolidayRevenue / yoy.PreviousNonHolidayRevenue) - 1) * 100, 'S990.0') || '%'
   END AS "Non_Holiday_YoY_Growth",
   TO_CHAR(
     (((yoy.HolidayRevenue / NULLIF(yoy.PreviousHolidayRevenue, 0)) - 1) * 100) -
     (((yoy.NonHolidayRevenue / NULLIF(yoy.PreviousNonHolidayRevenue, 0)) - 1) * 100),
-    'FMS990.0'
+    'S990.0'
   ) || '%' AS "Holiday_Growth_Premium"
 FROM YearOverYearGrowth yoy
 WHERE yoy.Year > 2010 AND yoy.Year < EXTRACT(YEAR FROM SYSDATE)
@@ -58,6 +58,11 @@ ORDER BY yoy.Year DESC;
 
 CLEAR COLUMNS; 
 TTITLE OFF; 
+
+-- =====================================================================================
+-- Avg Stay Duration
+-- =====================================================================================
+
 
 TTITLE CENTER 'Long-Term Holiday vs. Non-Holiday Average Stay Duration' SKIP 1 -
        CENTER 'Analysis Period: 2010-2025' SKIP 1 -
@@ -82,9 +87,9 @@ WITH
   )
 SELECT
   ysd.Year AS "Analysis_Year",
-  TO_CHAR(ysd.AvgHolidayStay, 'FM99.9') AS "Avg_Holiday_Stay",
-  TO_CHAR(ysd.AvgNonHolidayStay, 'FM99.9') AS "Avg_Non_Holiday_Stay",
-  TO_CHAR(((ysd.AvgHolidayStay / ysd.AvgNonHolidayStay) - 1) * 100, 'FMS990.0') || '%' AS "Stay_Length_Premium"
+  TO_CHAR(ysd.AvgHolidayStay, '99.9') AS "Avg_Holiday_Stay",
+  TO_CHAR(ysd.AvgNonHolidayStay, '99.9') AS "Avg_Non_Holiday_Stay",
+  TO_CHAR(((ysd.AvgHolidayStay / ysd.AvgNonHolidayStay) - 1) * 100, 'S990.0') || '%' AS "Stay_Length_Premium"
 FROM YearlyStayDuration ysd
 WHERE ysd.Year > 2010 AND ysd.Year < EXTRACT(YEAR FROM SYSDATE)
 ORDER BY ysd.Year DESC;
